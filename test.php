@@ -1,0 +1,4 @@
+<?php
+$a ="https://www.futuremug.co.in/interview_futuremug/aHR0cHM6Ly9mdXR1cmVtdWcuaW52Yy5pbi9pbmNvbmYvNjEwM2NlMzAtNzU1Ni0xMWVkLWJhMzYtOTdlOTllZWZkM2VmP2h0PTEwMCZpaWQ9ODM0OCZteWVtYWlsPWppbGpvdGVzdGludGVydml3ZXIxMjNAeW9wbWFpbC5jb20md2FpdGluZ3Jvb209aHR0cHM6Ly9pbnN0YXZjLmNvbSZyZWRpcmVjdD1odHRwczovL3d3dy5mdXR1cmVtdWcuY28uaW4vaW50ZXJ2aWV3X3JlZGlyZWN0cGFnZQ==";
+echo base64_decode($a);
+?>

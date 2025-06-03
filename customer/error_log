@@ -1,0 +1,6 @@
+[24-Jul-2019 15:04:09 UTC] PHP Fatal error:  Call to a member function userimaege() on null in /home/cpan4t/public_html/dicon/customer/application/core/MY_Controller.php on line 24
+[12-Aug-2019 11:40:31 UTC] PHP Parse error:  syntax error, unexpected '->' (T_OBJECT_OPERATOR), expecting identifier (T_STRING) or variable (T_VARIABLE) or '{' or '$' in /home/cpan4t/public_html/dicon/customer/application/models/customer/Studiesmodel.php on line 36
+[13-Aug-2019 07:52:44 UTC] PHP Fatal error:  Call to a member function num_rows() on array in /home/cpan4t/public_html/dicon/customer/application/models/customer/Studiesmodel.php on line 37
+[13-Aug-2019 09:07:41 UTC] PHP Parse error:  syntax error, unexpected ':' in /home/cpan4t/public_html/dicon/customer/application/controllers/customer/Studies.php on line 80
+[14-Aug-2019 07:15:24 UTC] PHP Fatal error:  Call to undefined method CI_DB_mysqli_result::result_row() in /home/cpan4t/public_html/dicon/customer/application/models/customer/Studiesmodel.php on line 88
+[14-Aug-2019 07:15:29 UTC] PHP Fatal error:  Call to undefined method CI_DB_mysqli_result::result_row() in /home/cpan4t/public_html/dicon/customer/application/models/customer/Studiesmodel.php on line 88
