@@ -53,8 +53,8 @@ class Router extends App
         ///////////////////////////////////////////////////////////////////////////////////////////////////
         // Customer Login
         $this->router->respond(array('GET', 'POST'), '/customer_login', function ($request) {
-            //$this->controller('CustomerLogin');
-            $this->redirect('login');
+
+            $this->controller('CustomerLogin');
         });
 
         $this->router->respond(array('GET', 'POST'), '/customer_dashboard', function () {
@@ -86,6 +86,7 @@ class Router extends App
         });
 
         $this->router->respond('GET', '/getAssignees', function () {
+
             $this->controller('Customerdetails', 'getAssignees');
         });
 
@@ -95,6 +96,7 @@ class Router extends App
         });
 
         $this->router->respond('GET', '/getStatuses', function () {
+
             $this->controller('Customerdetails', 'getStatuses');
         });
 
@@ -108,8 +110,7 @@ class Router extends App
 
         $this->router->respond('GET', '/customer_logout', function () {
             session_destroy();
-            //$this->redirect('customer_login');
-            $this->redirect('login');
+            $this->redirect('customer_login');
         });
         ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -179,79 +180,11 @@ class Router extends App
         });
         //////////////////////////////////////////////////////////////////////////////////////////////////
 
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-        //Subscription Tab
-        $this->router->respond(array('GET', 'POST'), '/get_analyses_for_subscription', function ($request) {
-            $this->controller('Admintat', 'analyses_for_subscription');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/analyses_subscription_list', function ($request) {
-            $this->controller('Admintat', 'subscribed_analyses');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/add_new_subscriptions', function ($request) {
-            $this->controller('Admintat', 'add_new_subscriptions');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/save_added_subscriptions', function ($request) {
-            $this->controller('Admintat', 'save_subscriptions_added');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/check_analysis_subscription', function ($request) {
-            $this->controller('Admintat', 'check_analysis_subscription');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/update_analysis_subscription', function ($request) {
-            $this->controller('Admintat', 'update_analysis_subscription');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/delete_analysis_subscription', function ($request) {
-            $this->controller('Admintat', 'delete_analysis_subscription');
-        });
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-        //Maintenance Fee Tab
-        $this->router->respond(array('GET', 'POST'), '/get_maintenance_analyses', function ($request) {
-            $this->controller('Admintat', 'analyses_for_maintenance');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/analyses_maintenancefee_list', function ($request) {
-            $this->controller('Admintat', 'analyses_mainfee_list');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/add_to_monthlyfee', function ($request) {
-            $this->controller('Admintat', 'add_to_monthlyfee');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/update_analysis_maintenance_fee', function ($request) {
-            $this->controller('Admintat', 'update_analysis_maintenance_fee');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/delete_analysis_maintenance_fee', function ($request) {
-            $this->controller('Admintat', 'delete_analysis_maintenance_fee');
-        });
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-        //User Setup
-        $this->router->respond(array('GET', 'POST'), '/get_organizations', function ($request) {
-            $this->controller('Admintat', 'get_organizations');
-        });
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-        //Client Setup
-        $this->router->respond(array('GET', 'POST'), '/save_new_customer_details', function ($request) {
-            $this->controller('Admintat', 'save_new_customer_details');
-        });
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-
         ///////////////////////////////////////////////////////////////////////////////////////////////////
         // Analyst Login
         $this->router->respond(array('GET', 'POST'), '/analyst_login', function ($request) {
-            //$this->controller('AnalystLogin');
-            $this->redirect('login');
+
+            $this->controller('AnalystLogin');
         });
 
         $this->router->respond(array('GET', 'POST'), '/analyst_dashboard', function () {
@@ -275,12 +208,7 @@ class Router extends App
 
         $this->router->respond('GET', '/analyst_logout', function () {
             session_destroy();
-            //$this->redirect('analyst_login');
-            $this->redirect('login');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/analyst_profile', function () {
-        $this->controller('Analyst', 'profile');
+            $this->redirect('analyst_login');
         });
         ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -483,20 +411,6 @@ class Router extends App
             return 'Hello World abc!';
         });
 
-         $this->router->respond(array('GET', 'POST'), '/edit_tat', function () {
-            $data = ["page_title" => "Edit tat"];
-            $this->view('v2/layout/header', $data);
-            $this->controller('ExtraController', 'edit_tat');
-            $this->view('v2/layout/footer');
-        });
-
-          $this->router->respond(array('GET', 'POST'), '/view_details', function () {
-            $data = ["page_title" => "View Details"];
-            $this->view('v2/layout/header', $data);
-            $this->controller('ExtraController', 'viewdata');
-            $this->view('v2/layout/footer');
-        });
-
         $this->router->onHttpError(function ($code, $router) {
             switch ($code) {
                 case 404: {
@@ -530,6 +444,4 @@ class Router extends App
             $this->view('layout/footer');
         });
     }
-
-  
 }

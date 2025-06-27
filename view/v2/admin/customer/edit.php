@@ -60,7 +60,7 @@ switch ($_SESSION['user']->user_type_ids) {
 
         .card-collapsed {
             /* max-height: 500px; */
-            max-height: 75vh;
+            /* max-height: 75vh; */
             /* default height */
         }
 
@@ -511,13 +511,19 @@ switch ($_SESSION['user']->user_type_ids) {
                                             </div>
                                             <div class="col-md-2">
                                                 <div class="form-group">
+                                                    <label for="ItemNumber">Description</label>
+                                                    <input type="text" id="m_desc" class="form-control bg-white">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-group">
                                                     <label for="ItemNumber">Item Number</label>
                                                     <input type="text" id="mitem_number" class="form-control bg-white num" readonly>
                                                 </div>
                                             </div>
                                             <div class="col-md-2">
                                                 <div class="form-group">
-                                                    <label for="price">Price</label>
+                                                    <label for="price">List Price</label>
                                                     <input type="text" id="mdefault_price" class="form-control bg-white num" readonly>
                                                 </div>
                                             </div>
@@ -2309,7 +2315,8 @@ switch ($_SESSION['user']->user_type_ids) {
             var dataTableId = $selectedOption.data('table-id');
             var anumber = $selectedOption.data('itemnumber');
             var dprice = $selectedOption.data('price');
-            var adesc = $selectedOption.data('analysesdesc');
+            <?php /* var adesc = $selectedOption.data('analysesdesc'); */ ?>
+            var adesc = $('#m_desc').val();
             var monthlyFee = $('#monthly_fee').val();
 
             if (!analysisValue || !monthlyFee) {
@@ -3026,6 +3033,8 @@ switch ($_SESSION['user']->user_type_ids) {
 
         $('#maint-analysis').on('change', function() {
             var selectedOption = $(this).find('option:selected');
+            var desc = selectedOption.data('analysesdesc');
+            $('#m_desc').val(desc);
             var price = selectedOption.data('price');
             $('#mdefault_price').val(price);
             var inumber = selectedOption.data('itemnumber');

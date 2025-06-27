@@ -3,26 +3,30 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-class AjaxV2 extends Controller
-{
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+
+class AjaxV3 extends Controller {
 
     public $Logindb;
     public $Admindb;
+    public $Extradb;
     public $user;
     public $Analyst;
     public $Ajax;
     public $Assigndb;
 
-    function __construct()
-    {
+    function __construct() {
         //$this->connection = parent::loader()->database();
         $this->Logindb = $this->model('logindb');
         $this->Admindb = $this->model('admindb');
         $this->Ajax = $this->model('ajaxdb');
         $this->Analyst = $this->model('analystratemodel');
         $this->Assigndb = $this->model('adminassignmodel');
-
-        $this->Report = $this->model('reportdb');
+        $this->Extradb = $this->model('extradb');
 
         if (isset($_SESSION['user']) && $_SESSION['user']->user_type_ids == 1 || $_SESSION['user']->user_type_ids == 3) {
             $this->user = $this->Admindb->user_obj($_SESSION['user']->email);
@@ -33,34 +37,7 @@ class AjaxV2 extends Controller
         }
     }
 
-    public function isValidDate($date, $format = 'm-d-Y')
-    {
-        $date = trim($date);
-        $d = DateTime::createFromFormat($format, $date);
-        return $d && $d->format($format) === $date;
-    }
-
-    public function billing_summary_analyst_ajax()
-    {
-        $data = [];
-        $data['user'] = $this->user;
-        $form_data = $_POST;
-        $ids = !empty($form_data['analysts']) ? $form_data['analysts'] : [];
-        $start_date = !empty($form_data['start_date']) ? $form_data['start_date'] : '';
-        $end_date = !empty($form_data['end_date']) ? $form_data['end_date'] : '';
-        $data['analysts'] = $ids;
-        $data['start_date'] = $start_date;
-        $data['end_date'] = $end_date;
-
-        $data['wsheet'] = $this->Report->billing_summary_analyst($start_date, $end_date, $ids);
-
-        $analysts = $this->Report->get_analyst_names();
-        $data['analysts'] = $analysts;
-        $this->view('v2/admin/billing/billing_summary_analyst_ajax', $data);
-    }
-
-    public function ajax_analysis_polpulate()
-    {
+    public function ajax_analysis_polpulate() {
         $id = $_GET["id"];
         $data = $this->Admindb->analyses_by_id($id);
         echo json_encode($data);
@@ -82,8 +59,7 @@ class AjaxV2 extends Controller
     // 	die();
     // }
 
-    public function save_subscription_amount()
-    {
+    public function save_subscription_amount() {
         if (isset($_REQUEST["id"]) && isset($_REQUEST["amount"]) && $_REQUEST["id"] != "" && $_REQUEST["amount"] != "") {
 
             $id = $_REQUEST["id"];
@@ -128,26 +104,13 @@ class AjaxV2 extends Controller
 
 
                 $status = $this->Admindb->analyses_rate_insert_with_new_time_id(
-                    $all_analys['analysis'],
-                    $all_analys['customer'],
-                    $all_analys['rate'],
-                    $all_analys['code'],
-                    $all_analys['analysis_description'],
-                    $all_analys['custom_description'],
-                    $time_id,
-                    $all_analys['min_time']
-                );
+                        $all_analys['analysis'], $all_analys['customer'], $all_analys['rate'], $all_analys['code'], $all_analys['analysis_description'], $all_analys['custom_description'], $time_id, $all_analys['min_time']);
             }
 
             foreach ($all_subscrptions as $key => $all_subscri) {
 
                 $status = $this->Admindb->subscription_rate_insert_with_new_time_id(
-                    $all_subscri['month'],
-                    $all_subscri['analysis'],
-                    $all_subscri['customer'],
-                    $all_subscri['count'],
-                    $time_id
-                );
+                        $all_subscri['month'], $all_subscri['analysis'], $all_subscri['customer'], $all_subscri['count'], $time_id);
             }
 
             /* foreach ($all_discount_range as $key => $all_discount) {
@@ -178,6 +141,8 @@ class AjaxV2 extends Controller
             if ($status['status'] = 'success')
                 echo "1";
 
+
+
             die;
 
             /*  } */
@@ -186,8 +151,7 @@ class AjaxV2 extends Controller
         die;
     }
 
-    public function user_group_name($user_group_id)
-    {
+    public function user_group_name($user_group_id) {
         $con = $this->getConnection();
         $sql = "SELECT user_type FROM `user_type` WHERE user_type_id = '$user_group_id'";
         $query = mysqli_query($con, $sql);
@@ -195,450 +159,34 @@ class AjaxV2 extends Controller
         return !empty($row[0]) ? $row[0] : '';
     }
 
-    
-    // public function get_user_info()
-    // {
-    //     $con = $this->getConnection();
-    //     $request = $_REQUEST;
-    //     $col = array(
-    //         0 => 't1.user_name',
-    //         1 => 't1.email',
-    //         2 => 't2.user_type',
-    //         3 => 't1.created_at',
-    //         4 => 't1.is_active',
-    //         5 => 't1.user_id'
-    //     );  //create column like table in database
-    //     //Search
-
-    //     $search_str = trim($request['search']['value']);
-
-    //     $sql = "SELECT t1.user_id, t1.user_name, t1.email, t1.created_at, t1.is_active, t1.user_type_ids, t2.user_type FROM users t1 JOIN user_type t2 ON (t1.user_type_ids = t2.user_type_id) WHERE t1.is_deleted != '1' AND t2.is_deleted != '1'";
-
-    //     if (!empty($search_str)) {
-    //         $sql .= " AND (t1.user_id Like '%" . $search_str . "%' ";
-    //         $sql .= " OR t1.user_name Like '%" . $search_str . "%' ";
-    //         $sql .= " OR t2.user_type Like '%" . $search_str . "%' ";
-    //         $sql .= " OR t1.email Like '%" . $search_str . "%' ";
-
-    //         if (strtolower($search_str) == 'active') {
-    //             $sql .= " OR t1.is_active = '1' ";
-    //         } else if (strtolower($search_str) == 'inactive') {
-    //             $sql .= " OR t1.is_active = '0' ";
-    //         } else if (strtolower($search_str) == 'dormant') {
-    //             $sql .= " OR t1.is_active = '2' ";
-    //         }
-
-    //         //  $sql .= " OR t1.created_at Like '%" . $search_str . "%' )";
-    //         if ($this->isValidDate($search_str)) {
-    //             $date = DateTime::createFromFormat('m-d-Y', $search_str);
-    //             $c_date = $date->format('Y-m-d');
-    //             $sql .= " OR date(t1.created_at) = '$c_date' )";
-    //         } else {
-    //             $sql .= " )";
-    //         }
-    //     }
-    //     $query = mysqli_query($con, $sql);
-    //     $totalData = mysqli_num_rows($query);
-    //     $totalFilter = $totalData;
-
-    //     //Order
-    //     // $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-    //     //         $request['start'] . "  ," . $request['length'] . "  ";
-
-    //     $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'];
-
-    //     if ($request['length'] != -1) {
-    //         $sql .= " LIMIT " . $request['start'] . " ," . $request['length'];
-    //     }
-
-    //     $query = mysqli_query($con, $sql);
-
-    //     $data = array();
-
-    //     while ($row = mysqli_fetch_array($query)) {
-    //         $subdata = array();
-    //         // $usergroup = $this->user_group_name($row[5]);
-    //         $usergroup = $row['user_type'];
-    //         $subdata[] = $row['user_name']; //name
-    //         $subdata[] = $row['email']; //email
-    //         $subdata[] = $usergroup; //user
-    //         $originalDate = $row['created_at'];
-    //         // $newDate = date("m-d-Y h:i:s A", strtotime($originalDate));
-    //         $newDate = date("m-d-Y", strtotime($originalDate));
-    //         $subdata[] = $newDate; //created
-
-    //         if ($row['is_active'] == 1) {
-    //             $status_a = '<span class="spanstatus badge badge-secondary">Active</span>';
-    //             $s_btn = 'btn-warning';
-    //             $s_icn = '<i class="fas fa-plane-slash"></i> Inactivate';
-    //         } else if ($row['is_active'] == 2) {
-    //             $status_a = '<span class="spanstatus badge badge-light">Dormant</span>';
-    //             $s_btn = 'btn-primary';
-    //             $s_icn = '<i class="fas fa-plane"></i> Activate';
-    //         } else {
-    //             $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
-    //             $s_btn = 'btn-primary';
-    //             $s_icn = '<i class="fas fa-plane"></i> Activate';
-    //         }
-
-    //         $subdata[] = $status_a; // status     
-
-    //         $block_icon = ' <a href="javascript:void(0)" class="btn btn-xs ' . $s_btn . ' status_link change_status" data-id="' . $row[0] . '" data-status="' . $row['is_active'] . '" item-ref="' . $row[5] . '">' . $s_icn . '</a>';
-
-    //         //   $subdata[] = '<a href="' . SITE_URL . '/admin/user?edit=' . $row[0] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="' . SITE_URL . '/admin/user?delete=' . $row[0] . '" class="btn btn-xs btn-danger delete_link"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-    //         $subdata[] = '<a href="' . SITE_URL . '/admin/user?edit=' . $row[0] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $row[0] . '" item-ref="' . $row[5] . '"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-
-    //         $data[] = $subdata;
-    //     }
-
-    //     $json_data = array(
-    //         "draw" => intval($request['draw']),
-    //         "recordsTotal" => intval($totalData),
-    //         "recordsFiltered" => intval($totalFilter),
-    //         "data" => $data
-    //     );
-
-    //     echo json_encode($json_data);
-    //     die;
-    // }
-    
-
-
-    // Last working code
-	/* public function get_user_info()
-    {
-        $con = $this->getConnection();
-        $request = $_REQUEST;
-
-        // Column index mapping for ordering
-        $col = array(
-            0 => 't1.user_name',
-            1 => 't1.email',
-            2 => 'user_type',           // Use the alias we’ll define in SQL
-            3 => 'c.client_name',       // Organization name
-            4 => 't1.created_at',
-            5 => 't1.is_active',
-            6 => 't1.user_id'
-        );
-
-        $search_str = trim($request['search']['value']);
-
-        // Add CASE alias for user_type
-        $sql = "SELECT 
-            t1.user_id, 
-            t1.user_name, 
-            t1.email, 
-            t1.created_at, 
-            t1.is_active, 
-            t1.user_type_ids, 
-            CASE 
-                WHEN t2.user_type = 'Analyst' THEN 'Technologist' 
-                ELSE t2.user_type 
-            END AS user_type, 
-            cd.organization, 
-            c.client_name 
-        FROM users t1 
-        JOIN user_type t2 ON (t1.user_type_ids = t2.user_type_id) 
-        LEFT JOIN client_details cd ON (cd.user_ids = t1.user_id AND cd.is_deleted != '1') 
-        LEFT JOIN clients c ON (cd.organization = c.client_id AND c.is_deleted != '1') 
-        WHERE t1.is_deleted != '1' AND t2.is_deleted != '1'";
-
-        // Search filter
-        if (!empty($search_str)) {
-            $sql .= " AND (t1.user_id LIKE '%$search_str%' 
-                OR t1.user_name LIKE '%$search_str%' 
-                OR t1.email LIKE '%$search_str%' 
-                OR t2.user_type LIKE '%$search_str%' 
-                OR c.client_name LIKE '%$search_str%' ";
-
-            if (strtolower($search_str) == 'active') {
-                $sql .= " OR t1.is_active = '1' ";
-            } elseif (strtolower($search_str) == 'inactive') {
-                $sql .= " OR t1.is_active = '0' ";
-            } elseif (strtolower($search_str) == 'dormant') {
-                $sql .= " OR t1.is_active = '2' ";
-            }
-
-            if ($this->isValidDate($search_str)) {
-                $date = DateTime::createFromFormat('m-d-Y', $search_str);
-                $c_date = $date->format('Y-m-d');
-                $sql .= " OR DATE(t1.created_at) = '$c_date' )";
-            } else {
-                $sql .= " )";
-            }
-        }
-
-        // Count filtered data
-        $query = mysqli_query($con, $sql);
-        $totalData = mysqli_num_rows($query);
-        $totalFilter = $totalData;
-
-        // Ordering and pagination
-        if (isset($request['order']) && isset($request['order'][0])) {
-            $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . " " . $request['order'][0]['dir'];
-        } else {
-            $sql .= " ORDER BY t1.created_at DESC"; // Default: latest first
-        }
-
-        if ($request['length'] != -1) {
-            $sql .= " LIMIT " . $request['start'] . ", " . $request['length'];
-        }
-
-        $query = mysqli_query($con, $sql);
-        $data = array();
-
-        while ($row = mysqli_fetch_array($query)) {
-            $subdata = array();
-
-            $subdata[] = $row['user_name'];   // Name
-            $subdata[] = $row['email'];       // Email
-            $subdata[] = $row['user_type'];   // Already modified in SQL as 'Technologist' if 'Analyst'
-
-            // Organization Name
-            if ($row['user_type_ids'] == 5) {
-                $org_name = !empty($row['client_name']) ? $row['client_name'] : 'PIA';
-            } else {
-                $org_name = 'PIA';
-            }
-            $subdata[] = $org_name;
-
-            // Created Date
-            $newDate = date("m-d-Y", strtotime($row['created_at']));
-            $subdata[] = $newDate;
-
-            // Status Label
-            if ($row['is_active'] == 1) {
-                $status_a = '<span class="spanstatus badge badge-secondary">Active</span>';
-                $s_btn = 'btn-warning';
-                $s_icn = '<i class="fas fa-plane-slash"></i> Inactivate';
-            } elseif ($row['is_active'] == 2) {
-                $status_a = '<span class="spanstatus badge badge-light">Dormant</span>';
-                $s_btn = 'btn-primary';
-                $s_icn = '<i class="fas fa-plane"></i> Activate';
-            } else {
-                $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
-                $s_btn = 'btn-primary';
-                $s_icn = '<i class="fas fa-plane"></i> Activate';
-            }
-            $subdata[] = $status_a;
-
-            // Action Buttons
-            $block_icon = '<a href="javascript:void(0)" class="btn btn-xs ' . $s_btn . ' status_link change_status" data-id="' . $row['user_id'] . '" data-status="' . $row['is_active'] . '" item-ref="' . $row['user_type_ids'] . '">' . $s_icn . '</a>';
-
-            $subdata[] = '<a href="' . SITE_URL . '/admin/user?edit=' . $row['user_id'] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> 
-                  <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $row['user_id'] . '" item-ref="' . $row['user_type_ids'] . '"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-
-            $data[] = $subdata;
-        }
-
-        // Final JSON
-        $json_data = array(
-            "draw" => intval($request['draw']),
-            "recordsTotal" => intval($totalData),
-            "recordsFiltered" => intval($totalFilter),
-            "data" => $data
-        );
-
-        echo json_encode($json_data);
-        die;
-    } */
-    // Last working code
-	
-	
-	public function get_user_info()
-    {
-        $con = $this->getConnection();
-        $request = $_REQUEST;
-
-        // Column index mapping for ordering
-        $col = array(
-            0 => 't1.user_name',
-            1 => 't1.email',
-            2 => 'user_type',           // Use the alias we’ll define in SQL
-            3 => 'c.client_name',       // Organization name
-            4 => 't1.created_at',
-            5 => 't1.is_active',
-            6 => 't1.user_id'
-        );
-
-        $search_str = trim($request['search']['value']);
-
-        // Add CASE alias for user_type
-        $sql = "SELECT 
-            t1.user_id, 
-            t1.user_name, 
-            t1.email, 
-            t1.created_at, 
-            t1.is_active, 
-            t1.user_type_ids, 
-            CASE 
-                WHEN t2.user_type = 'Analyst' THEN 'Technologist' 
-                ELSE t2.user_type 
-            END AS user_type, 
-            cd.organization, 
-            c.client_name 
-        FROM users t1 
-        JOIN user_type t2 ON (t1.user_type_ids = t2.user_type_id) 
-        LEFT JOIN client_details cd ON (cd.user_ids = t1.user_id AND cd.is_deleted != '1') 
-        LEFT JOIN clients c ON (cd.organization = c.client_id AND c.is_deleted != '1') 
-        WHERE t1.is_deleted != '1' AND t2.is_deleted != '1'";
-
-        // Default Working Search filter
-        // if (!empty($search_str)) {
-        //     $sql .= " AND (t1.user_id LIKE '%$search_str%' 
-        //         OR t1.user_name LIKE '%$search_str%' 
-        //         OR t1.email LIKE '%$search_str%' 
-        //         OR t2.user_type LIKE '%$search_str%' 
-        //         OR c.client_name LIKE '%$search_str%' ";
-
-        //     if (strtolower($search_str) == 'active') {
-        //         $sql .= " OR t1.is_active = '1' ";
-        //     } elseif (strtolower($search_str) == 'inactive') {
-        //         $sql .= " OR t1.is_active = '0' ";
-        //     } elseif (strtolower($search_str) == 'dormant') {
-        //         $sql .= " OR t1.is_active = '2' ";
-        //     }
-
-        //     if ($this->isValidDate($search_str)) {
-        //         $date = DateTime::createFromFormat('m-d-Y', $search_str);
-        //         $c_date = $date->format('Y-m-d');
-        //         $sql .= " OR DATE(t1.created_at) = '$c_date' )";
-        //     } else {
-        //         $sql .= " )";
-        //     }
-        // }
-
-        // Customized Search filter
-        if (!empty($search_str)) {
-            $sql .= " AND (t1.user_id LIKE '%$search_str%'
-                OR t1.user_name LIKE '%$search_str%'
-                OR t1.email LIKE '%$search_str%' ";
-
-            
-            $search_str_lower = strtolower($search_str);
-            if ($search_str_lower == 'technologist') {
-                $sql .= " OR (LOWER(t2.user_type) = 'analyst') "; 
-            } else {
-                $sql .= " OR t2.user_type LIKE '%$search_str%' "; 
-            }
-
-            $sql .= " OR c.client_name LIKE '%$search_str%' ";
-
-            if ($search_str_lower == 'active') {
-                $sql .= " OR t1.is_active = '1' ";
-            } elseif ($search_str_lower == 'inactive') {
-                $sql .= " OR t1.is_active = '0' ";
-            } elseif ($search_str_lower == 'dormant') {
-                $sql .= " OR t1.is_active = '2' ";
-            }
-
-            if ($this->isValidDate($search_str)) {
-                $date = DateTime::createFromFormat('m-d-Y', $search_str);
-                $c_date = $date->format('Y-m-d');
-                $sql .= " OR DATE(t1.created_at) = '$c_date' )";
-            } else {
-                $sql .= " )";
-            }
-        }
-
-        // Count filtered data
-        $query = mysqli_query($con, $sql);
-        $totalData = mysqli_num_rows($query);
-        $totalFilter = $totalData;
-
-        // Ordering and pagination
-        if (isset($request['order']) && isset($request['order'][0])) {
-            $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . " " . $request['order'][0]['dir'];
-        } else {
-            $sql .= " ORDER BY t1.created_at DESC"; // Default: latest first
-        }
-
-        if ($request['length'] != -1) {
-            $sql .= " LIMIT " . $request['start'] . ", " . $request['length'];
-        }
-
-        $query = mysqli_query($con, $sql);
-        $data = array();
-
-        while ($row = mysqli_fetch_array($query)) {
-            $subdata = array();
-
-            $subdata[] = $row['user_name'];   // Name
-            $subdata[] = $row['email'];       // Email
-            $subdata[] = $row['user_type'];   // Already modified in SQL as 'Technologist' if 'Analyst'
-
-            // Organization Name
-            if ($row['user_type_ids'] == 5) {
-                $org_name = !empty($row['client_name']) ? $row['client_name'] : 'PIA';
-            } else {
-                $org_name = 'PIA';
-            }
-            $subdata[] = $org_name;
-
-            // Created Date
-            $newDate = date("m-d-Y", strtotime($row['created_at']));
-            $subdata[] = $newDate;
-
-            // Status Label
-            if ($row['is_active'] == 1) {
-                $status_a = '<span class="spanstatus badge badge-secondary">Active</span>';
-                $s_btn = 'btn-warning';
-                $s_icn = '<i class="fas fa-plane-slash"></i> Inactivate';
-            } elseif ($row['is_active'] == 2) {
-                $status_a = '<span class="spanstatus badge badge-light">Dormant</span>';
-                $s_btn = 'btn-primary';
-                $s_icn = '<i class="fas fa-plane"></i> Activate';
-            } else {
-                $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
-                $s_btn = 'btn-primary';
-                $s_icn = '<i class="fas fa-plane"></i> Activate';
-            }
-            $subdata[] = $status_a;
-
-            // Action Buttons
-            $block_icon = '<a href="javascript:void(0)" class="btn btn-xs ' . $s_btn . ' status_link change_status" data-id="' . $row['user_id'] . '" data-status="' . $row['is_active'] . '" item-ref="' . $row['user_type_ids'] . '">' . $s_icn . '</a>';
-
-            $subdata[] = '<a href="' . SITE_URL . '/admin/user?edit=' . $row['user_id'] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> 
-                  <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $row['user_id'] . '" item-ref="' . $row['user_type_ids'] . '"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-
-            $data[] = $subdata;
-        }
-
-        // Final JSON
-        $json_data = array(
-            "draw" => intval($request['draw']),
-            "recordsTotal" => intval($totalData),
-            "recordsFiltered" => intval($totalFilter),
-            "data" => $data
-        );
-
-        echo json_encode($json_data);
-        die;
-    }
-
-
-
-    public function get_miscellaneous_billing_info()
-    {
+    public function get_user_info() {
         $con = $this->getConnection();
         $request = $_REQUEST;
         $col = array(
-            0 => 'name',
-            1 => 'analysis_invoicing_description',
-            2 => 'analysis_client_price',
-            3 => 'cus',
-            4 => 'created_at'
+            0 => 'user_name',
+            1 => 'email',
+            2 => 'user_type_ids',
+            3 => 'created_at',
+            4 => 'is_active'
         );  //create column like table in database
+        //   $sql = "SELECT name, email, created, active, group_id FROM users";
+        //  $query = mysqli_query($con, $sql);
+        //  $totalData = mysqli_num_rows($query);
+        // $totalFilter = $totalData;
         //Search
 
-        $sql = "SELECT t1.name,t1.analysis_invoicing_description,t1.analysis_client_price, t2.user_name as cus,t1.created_at,t1.miscellaneous_billing_id FROM miscellaneous_billing t1 INNER JOIN users t2 ON t1.client_account_ids=t2.user_id";
+        $sql = "SELECT user_id, user_name, email, created_at, is_active, user_type_ids FROM users WHERE 1=1";
 
         if (!empty($request['search']['value'])) {
+            $sql .= " AND (user_id Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR user_name Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR email Like '%" . $request['search']['value'] . "%' ";
 
-            $sql .= " AND cus Like '%" . $request['search']['value'] . "%' ";
-            $sql .= " OR name Like '%" . $request['search']['value'] . "%' ";
-            $sql .= " OR analysis_invoicing_description Like '%" . $request['search']['value'] . "%' ";
-            $sql .= " OR analysis_client_price Like '%" . $request['search']['value'] . "%' ";
+            if (strtolower($request['search']['value']) == 'active') {
+                $sql .= " OR is_active = 1 ";
+            } else if (strtolower($request['search']['value']) == 'inactive') {
+                $sql .= " OR is_active = 0 ";
+            }
 
             $sql .= " OR created_at Like '%" . $request['search']['value'] . "%' )";
         }
@@ -648,7 +196,7 @@ class AjaxV2 extends Controller
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -656,14 +204,26 @@ class AjaxV2 extends Controller
 
         while ($row = mysqli_fetch_array($query)) {
             $subdata = array();
-            $subdata[] = $row[0]; //name
-            $subdata[] = $row[1]; //email
-            $subdata[] = $row[2];
-            $subdata[] = $row[3];
-            $originalDate = $row[4];
+            $usergroup = $this->user_group_name($row[5]);
+            $subdata[] = $row[1]; //name
+            $subdata[] = $row[2]; //email
+            $subdata[] = $usergroup; //user
+            $originalDate = $row[3];
             $newDate = date("m-d-Y h:i:s A", strtotime($originalDate));
             $subdata[] = $newDate; //created
-            $subdata[] = '<a href="' . SITE_URL . '/admin/miscellaneous_billing?edit=' . $row[5] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="' . SITE_URL . '/admin/miscellaneous_billing?delete=' . $row[5] . '" class="btn btn-xs btn-danger delete_link"><i class="fas fa-trash-alt"></i> Delete</a>';
+
+            if ($row['is_active'] == 1) {
+                $status_a = '<span class="spanstatus badge badge-primary">Active</span>';
+            } else {
+                $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
+            }
+
+            $subdata[] = $status_a; // status     
+
+            $block_icon = ' <a href="javascript:void(0)" class="status_link change_status" data-id="' . $row[0] . '" data-status="' . $row['is_active'] . '"><i class="fa fa-ban" aria-hidden="true"></i></a>';
+
+            $subdata[] = '<a href="' . SITE_URL . '/admin/user?edit=' . $row[0] . '" class="edit_link"><i class="fa fa-pencil-square" aria-hidden="true"></i></a> <a href="' . SITE_URL . '/admin/user?delete=' . $row[0] . '" class="delete_link"><i class="fa fa-trash" aria-hidden="true"></i></a>' . $block_icon;
+
             $data[] = $subdata;
         }
 
@@ -678,324 +238,40 @@ class AjaxV2 extends Controller
         die;
     }
 
-    //Previous Code
-    // public function get_analyses_info()
-    // {
-    //     $con = $this->getConnection();
-    //     $request = $_REQUEST;
-    //     $col = array(
-    //         0 => 't1.analysis_name',
-    //         1 => 't2.category_name',
-    //         2 => 't1.analysis_number',
-    //         3 => 't1.analysis_price',
-    //         4 => 'time_in_minutes',
-    //         //            5 => 't1.created_at',
-    //         //            6 => 't1.is_active',
-    //         5 => 't1.analysis_id'
-    //     );  //create column like table in database
-    //     //Search
-    //     $search_str = trim($request['search']['value']);
-    //     //$sql = "SELECT t1.analysis_id, t1.analysis_name, t2.category_name, t1.analysis_number, t1.analysis_price, t1.time_to_analyze, t1.time_unit, t1.time_in_minutes, t1.created_at, t1.is_active FROM analyses t1 INNER JOIN analyses_category t2 ON (t1.category_ids = t2.category_id) WHERE t1.is_deleted != '1' AND t2.is_deleted != '1'";
-    //     $sql = "SELECT t1.analysis_id, t1.analysis_name, t2.category_name, t1.analysis_number, t1.analysis_price, t1.time_to_analyze, t1.time_unit, t1.time_in_minutes, t1.created_at, t1.is_active FROM analyses t1 INNER JOIN analyses_category t2 ON (t1.category_ids = t2.category_id) WHERE t1.is_deleted != '1'";
-    //     if (!empty($search_str)) {
-    //         // $sql .= " AND (t1.analysis_id Like '%" . $search_str . "%' ";
-    //         $sql .= " AND (t1.analysis_name Like '%" . $search_str . "%' ";
-    //         $sql .= " OR t1.analysis_number Like '%" . $search_str . "%' ";
-    //         if (is_numeric($search_str)) {
-    //             $sql .= " OR t1.time_to_analyze = '" . $search_str . "' ";
-    //             $sql .= " OR t1.analysis_price = '" . $search_str . "' ";
-    //         }
-    //         $sql .= " OR t2.category_name Like '%" . $search_str . "%' )";
-    //     }
+    public function get_analyses_info() {
 
-    //     // echo $sql;
-
-    //     $query = mysqli_query($con, $sql);
-    //     $totalData = mysqli_num_rows($query);
-    //     $totalFilter = $totalData;
-
-    //     //Order
-    //     // $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-    //     //         $request['start'] . "  ," . $request['length'] . "  ";
-    //     $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'];
-    //     if ($request['length'] != -1) {
-    //         $sql .= " LIMIT " . $request['start'] . " ," . $request['length'];
-    //     }
-
-    //     $query = mysqli_query($con, $sql);
-
-    //     $data = array();
-
-    //     while ($row = mysqli_fetch_array($query)) {
-    //         $subdata = array();
-    //         $subdata[] = $row['analysis_name'];
-    //         $subdata[] = $row['category_name'];
-    //         $subdata[] = $row['analysis_number'];
-    //         $subdata[] = "$" . $row['analysis_price'];
-    //         // $subdata[] = $row['time_to_analyze'];
-    //         $subdata[] = $row['time_to_analyze'] . ' ' . $row['time_unit'];
-    //         // $originalDate = $row[6];
-    //         // $newDate = date("m-d-Y h:i:s A", strtotime($originalDate));
-    //         // $subdata[] = $newDate;
-    //         $block_icon = '';
-    //         /*   if ($row['is_active'] == 1) {
-    //           $status_a = '<span class="spanstatus badge badge-primary">Active</span>';
-    //           $s_btn = 'btn-warning';
-    //           $s_icn = '<i class="fas fa-plane-slash"></i> Inactivate';
-    //           } else {
-    //           $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
-    //           $s_btn = 'btn-primary';
-    //           $s_icn = '<i class="fas fa-plane"></i> Activate';
-    //           }
-
-    //           $subdata[] = $status_a; */
-
-    //         // $block_icon = ' <a href="javascript:void(0)" class="btn btn-xs ' . $s_btn . ' status_link change_status" data-id="' . $row['analysis_id'] . '" data-status="' . $row['is_active'] . '">' . $s_icn . '</a>';
-    //         //  $subdata[] = '<a href="' . SITE_URL . '/admin/analyses?edit=' . $row['analysis_id'] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="' . SITE_URL . '/admin/analyses?delete=' . $row[0] . '" class="btn btn-xs btn-danger delete_link"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-    //         $subdata[] = '<a href="' . SITE_URL . '/admin/analyses?edit=' . $row['analysis_id'] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $row[0] . '"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-
-    //         $data[] = $subdata;
-    //     }
-
-    //     $json_data = array(
-    //         "draw" => intval($request['draw']),
-    //         "recordsTotal" => intval($totalData),
-    //         "recordsFiltered" => intval($totalFilter),
-    //         "data" => $data
-    //     );
-
-    //     echo json_encode($json_data);
-
-    //     die;
-    // }
-
-    public function get_analyses_info()
-    {
-        $con = $this->getConnection();
-        $request = $_REQUEST;
-
-        $columns = array(
-            0 => 't1.analysis_name',
-            1 => 't2.category_name',
-            2 => 't1.analysis_number',
-            3 => 't1.analysis_price',
-            4 => 't1.time_in_minutes',
-            5 => 't1.analysis_id'
-        );
-
-        $search_str = trim($request['search']['value']);
-
-        // Base SQL FROM and JOIN conditions
-        // $base_sql = "FROM analyses t1 
-        //          INNER JOIN analyses_category t2 
-        //          ON t1.category_ids = t2.category_id 
-        //          WHERE t1.is_deleted != '1' AND t2.is_deleted != '1'";
-
-        $base_sql = "FROM analyses t1 
-                 INNER JOIN analyses_category t2 
-                 ON t1.category_ids = t2.category_id 
-                 WHERE t1.is_deleted != '1'";
-
-        // Append search filter
-        if (!empty($search_str)) {
-            $base_sql .= " AND (t1.analysis_name LIKE '%" . mysqli_real_escape_string($con, $search_str) . "%'
-                      OR t1.analysis_number LIKE '%" . mysqli_real_escape_string($con, $search_str) . "%'
-                      OR t2.category_name LIKE '%" . mysqli_real_escape_string($con, $search_str) . "%'";
-
-            if (is_numeric($search_str)) {
-                $base_sql .= " OR t1.time_to_analyze = '" . $search_str . "'
-                           OR t1.analysis_price = '" . $search_str . "'";
-            }
-
-            $base_sql .= ")";
-        }
-
-        // Get total filtered records
-        $count_sql = "SELECT COUNT(DISTINCT t1.analysis_id) AS total " . $base_sql;
-        $count_result = mysqli_query($con, $count_sql);
-        $totalFiltered = mysqli_fetch_assoc($count_result)['total'];
-
-        // Get total records without search
-        // $total_sql = "SELECT COUNT(DISTINCT t1.analysis_id) AS total 
-        //           FROM analyses t1 
-        //           INNER JOIN analyses_category t2 
-        //           ON t1.category_ids = t2.category_id 
-        //           WHERE t1.is_deleted != '1' AND t2.is_deleted != '1'";
-        $total_sql = "SELECT COUNT(DISTINCT t1.analysis_id) AS total 
-                  FROM analyses t1 
-                  INNER JOIN analyses_category t2 
-                  ON t1.category_ids = t2.category_id 
-                  WHERE t1.is_deleted != '1'";
-        $total_result = mysqli_query($con, $total_sql);
-        $totalData = mysqli_fetch_assoc($total_result)['total'];
-
-        // Order and Limit
-        $order_column = $columns[$request['order'][0]['column']];
-        $order_dir = $request['order'][0]['dir'];
-
-        $start = intval($request['start']);
-        $length = intval($request['length']);
-
-        // Final paginated data query
-        $data_sql = "SELECT t1.analysis_id, t1.analysis_name, t2.category_name, 
-                        t1.analysis_number, t1.analysis_price, 
-                        t1.time_to_analyze, t1.time_unit, t1.time_in_minutes 
-                 $base_sql 
-                 ORDER BY $order_column $order_dir, t1.analysis_id ASC";
-
-        if ($length != -1) {
-            $data_sql .= " LIMIT $start, $length";
-        }
-
-        $data_query = mysqli_query($con, $data_sql);
-        $data = [];
-
-        while ($row = mysqli_fetch_assoc($data_query)) {
-            $subdata = [];
-            $subdata[] = $row['analysis_name'];
-            $subdata[] = $row['category_name'];
-            $subdata[] = $row['analysis_number'];
-            $subdata[] = "$" . $row['analysis_price'];
-            $subdata[] = $row['time_to_analyze'] . ' ' . $row['time_unit'];
-
-            $edit_url = SITE_URL . "/admin/analyses?edit=" . $row['analysis_id'];
-            $delete_id = $row['analysis_id'];
-
-            $action_html = '<a href="' . $edit_url . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> 
-                        <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $delete_id . '">
-                        <i class="fas fa-trash-alt"></i> Delete</a>';
-
-            $subdata[] = $action_html;
-
-            $data[] = $subdata;
-        }
-
-        // Final JSON response
-        $json_data = array(
-            "draw" => intval($request['draw']),
-            "recordsTotal" => intval($totalData),
-            "recordsFiltered" => intval($totalFiltered),
-            "data" => $data
-        );
-
-        header('Content-Type: application/json');
-        echo json_encode($json_data);
-        exit;
-    }
-
-
-    // Previous code
-    // public function get_analyses_category_info()
-    // {
-    //     $con = $this->getConnection();
-
-    //     $request = $_REQUEST;
-    //     $col = array(
-    //         0 => 'category_name',
-    //         1 => 'is_active',
-    //         2 => 'category_id'
-    //     );  //create column like table in database
-    //     //Search
-    //     $search_str = $request['search']['value'];
-    //     $sql = "SELECT category_id, category_name, is_active FROM analyses_category WHERE is_deleted != '1'";
-    //     if (!empty($search_str)) {
-    //         $sql .= " AND (category_id Like '%" . $search_str . "%' ";
-    //         if (strtolower($search_str) == 'active') {
-    //             $sql .= " OR is_active = '1' ";
-    //         } else if (strtolower($search_str) == 'inactive') {
-    //             $sql .= " OR is_active = '0' ";
-    //         }
-    //         $sql .= " OR category_name Like '%" . $search_str . "%' )";
-    //     }
-
-    //     $query = mysqli_query($con, $sql);
-    //     $totalData = mysqli_num_rows($query);
-    //     $totalFilter = $totalData;
-    //     //Order
-    //     // $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-    //     //         $request['start'] . "  ," . $request['length'] . "  ";
-
-    //     $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'];
-    //     if ($request['length'] != -1) {
-    //         $sql .= " LIMIT " . $request['start'] . " ," . $request['length'];
-    //     }
-
-    //     $query = mysqli_query($con, $sql);
-
-    //     $data = array();
-
-    //     while ($row = mysqli_fetch_array($query)) {
-    //         $subdata = array();
-    //         $subdata[] = $row[1]; //category
-    //         if ($row['is_active'] == 1) {
-    //             $status_a = '<span class="spanstatus badge badge-secondary">Active</span>';
-    //             $s_btn = 'btn-warning';
-    //             $s_icn = '<i class="fas fa-plane-slash"></i> Inactivate';
-    //         } else {
-    //             $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
-    //             $s_btn = 'btn-primary';
-    //             $s_icn = '<i class="fas fa-plane"></i> Activate';
-    //         }
-
-    //         $subdata[] = $status_a; // status 
-
-    //         $block_icon = ' <a href="javascript:void(0)" class="btn btn-xs ' . $s_btn . ' status_link change_status" data-id="' . $row[0] . '" data-status="' . $row['is_active'] . '">' . $s_icn . '</a>';
-
-    //         // $subdata[] = '<a href="' . SITE_URL . '/admin/analyses_category?edit=' . $row[0] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="' . SITE_URL . '/admin/analyses_category?delete=' . $row[0] . '" class="btn btn-xs btn-danger delete_link"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-    //         $subdata[] = '<a href="' . SITE_URL . '/admin/analyses_category?edit=' . $row[0] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $row[0] . '"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
-
-    //         $data[] = $subdata;
-    //     }
-
-    //     $json_data = array(
-    //         "draw" => intval($request['draw']),
-    //         "recordsTotal" => intval($totalData),
-    //         "recordsFiltered" => intval($totalFilter),
-    //         "data" => $data
-    //     );
-
-    //     echo json_encode($json_data);
-
-    //     die;
-    // }
-    // Previous code
-
-    public function get_analyses_category_info()
-    {
         $con = $this->getConnection();
 
         $request = $_REQUEST;
         $col = array(
-            0 => 'category_name',
-            1 => 'is_active',
-            2 => 'category_id'
-        );
+            0 => 'analysis_name',
+            1 => 'category_name',
+            2 => 'price',
+            3 => 'minimum_time'
+        );  //create column like table in database
 
-        $search_str = trim($request['search']['value']);
+        $sql = "SELECT analyses.analysis_id, analyses.analysis_name, analyses_category.category_name ,analyses.analysis_price, analyses.time_to_analyze FROM analyses JOIN analyses_category ON analyses.category_ids = analyses_category.category_id";
+        $query = mysqli_query($con, $sql);
 
-        $sql = "SELECT category_id, category_name, is_active FROM analyses_category WHERE is_deleted != '1'";
+        $totalData = mysqli_num_rows($query);
 
-        if (!empty($search_str)) {
-            $sql .= " AND (category_id LIKE '%" . $search_str . "%'";
-            $sql .= " OR category_name LIKE '%" . $search_str . "%'";
-
-            if (strtolower($search_str) == 'active') {
-                $sql .= " OR is_active = '1'";
-            } else if (strtolower($search_str) == 'inactive') {
-                $sql .= " OR is_active = '0'";
-            }
-
-            $sql .= " )";
+        // $totalFilter = $totalData;
+        //Search
+        $sql = "SELECT analyses.analysis_id, analyses.analysis_name, analyses_category.category_name, analyses.analysis_price, analyses.time_to_analyze FROM analyses JOIN analyses_category ON analyses.category_ids = analyses_category.category_id WHERE 1=1";
+        if (!empty($request['search']['value'])) {
+            $sql .= " AND (analyses.analysis_id Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR analyses.analysis_name Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR analyses_category.category_name Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR analyses.time_to_analyze Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR analyses.analysis_price Like '%" . $request['search']['value'] . "%' )";
         }
-
         $query = mysqli_query($con, $sql);
         $totalData = mysqli_num_rows($query);
         $totalFilter = $totalData;
 
-        $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . " " . $request['order'][0]['dir'];
-        if ($request['length'] != -1) {
-            $sql .= " LIMIT " . $request['start'] . " ," . $request['length'];
-        }
+        //Order
+        $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -1003,24 +279,12 @@ class AjaxV2 extends Controller
 
         while ($row = mysqli_fetch_array($query)) {
             $subdata = array();
-            $subdata[] = $row['category_name'];
-
-            if ($row['is_active'] == 1) {
-                $status_a = '<span class="spanstatus badge badge-secondary">Active</span>';
-                $s_btn = 'btn-warning';
-                $s_icn = '<i class="fas fa-plane-slash"></i> Inactivate';
-            } else {
-                $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
-                $s_btn = 'btn-primary';
-                $s_icn = '<i class="fas fa-plane"></i> Activate';
-            }
-
-            $subdata[] = $status_a;
-
-            $block_icon = ' <a href="javascript:void(0)" class="btn btn-xs ' . $s_btn . ' status_link change_status" data-id="' . $row['category_id'] . '" data-status="' . $row['is_active'] . '">' . $s_icn . '</a>';
-
-            $subdata[] = '<a href="' . SITE_URL . '/admin/analyses_category?edit=' . $row['category_id'] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> 
-                      <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $row['category_id'] . '"><i class="fas fa-trash-alt"></i> Delete</a>' . $block_icon;
+            $subdata[] = $row[1]; //name
+            $subdata[] = $row[2]; //email
+            $subdata[] = "$" . $row[3]; //price
+            $subdata[] = $row[4]; //minimum time
+            $subdata[] = '<a href="' . SITE_URL . '/admin/analyses?edit=' . $row[0] . '" class="edit_link"><i class="fa fa-pencil-square" aria-hidden="true"></i></a>
+		          <a href="' . SITE_URL . '/admin/analyses?delete=' . $row[0] . '" class="delete_link"><i class="fa fa-trash" aria-hidden="true"></i></a>';
 
             $data[] = $subdata;
         }
@@ -1033,13 +297,65 @@ class AjaxV2 extends Controller
         );
 
         echo json_encode($json_data);
+
         die;
     }
 
+    // Function created on 22-1-2019
 
+    public function get_analyses_category_info() {
+        $con = $this->getConnection();
 
-    public function get_customer_info()
-    {
+        $request = $_REQUEST;
+        $col = array(
+            0 => 'category_name'
+        );  //create column like table in database
+
+        $sql = "SELECT category_id, category_name FROM analyses_category";
+        $query = mysqli_query($con, $sql);
+
+        $totalData = mysqli_num_rows($query);
+
+        // $totalFilter = $totalData;
+        //Search
+        $sql = "SELECT category_id, category_name FROM analyses_category WHERE 1=1";
+        if (!empty($request['search']['value'])) {
+            $sql .= " AND (category_id Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR category_name Like '%" . $request['search']['value'] . "%' )";
+        }
+        $query = mysqli_query($con, $sql);
+        $totalData = mysqli_num_rows($query);
+        $totalFilter = $totalData;
+        //Order
+        $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
+                $request['start'] . "  ," . $request['length'] . "  ";
+
+        $query = mysqli_query($con, $sql);
+
+        $data = array();
+
+        while ($row = mysqli_fetch_array($query)) {
+            $subdata = array();
+            $subdata[] = $row[1]; //category
+            $subdata[] = '<a href="' . SITE_URL . '/admin/analyses_category?edit=' . $row[0] . '" class="edit_link"><i class="fa fa-pencil-square" aria-hidden="true"></i></a>
+		          <a href="' . SITE_URL . '/admin/analyses_category?delete=' . $row[0] . '" class="delete_link"><i class="fa fa-trash" aria-hidden="true"></i></a>';
+
+            $data[] = $subdata;
+        }
+
+        $json_data = array(
+            "draw" => intval($request['draw']),
+            "recordsTotal" => intval($totalData),
+            "recordsFiltered" => intval($totalFilter),
+            "data" => $data
+        );
+
+        echo json_encode($json_data);
+
+        die;
+    }
+
+    public function get_customer_info() {
 
         $con = $this->getConnection();
 
@@ -1048,48 +364,40 @@ class AjaxV2 extends Controller
             0 => 'user_name',
             1 => 'email',
             2 => 'created_at',
-            3 => 'is_active',
-            4 => 'user_id'
+            3 => 'is_active'
         );  //create column like table in database
+
+
+        $sql = "SELECT user_id, user_name, email, created_at, is_active FROM `users` WHERE user_type_ids = 5";
+
+        $query = mysqli_query($con, $sql);
+
+        $totalData = mysqli_num_rows($query);
+
+        //  $totalFilter = $totalData;
         //Search
 
-        $search_str = trim($request['search']['value']);
+        $sql = "SELECT user_id, user_name, email, created_at, is_active FROM `users` WHERE user_type_ids = 5";
 
-        $sql = "SELECT user_id, user_name, email, created_at, is_active, user_type_ids FROM `users` WHERE user_type_ids = 5 AND is_deleted!='1'";
+        if (!empty($request['search']['value'])) {
+            $sql .= " AND (user_id Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR user_name Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR email Like '%" . $request['search']['value'] . "%' ";
 
-        if (!empty($search_str)) {
-            $sql .= " AND (user_id Like '%" . $search_str . "%' ";
-            $sql .= " OR user_name Like '%" . $search_str . "%' ";
-            $sql .= " OR email Like '%" . $search_str . "%' ";
-
-            if (strtolower($search_str) == 'active') {
-                $sql .= " OR is_active = '1' ";
-            } else if (strtolower($search_str) == 'inactive') {
-                $sql .= " OR is_active = '0' ";
-            } else if (strtolower($search_str) == 'dormant') {
-                $sql .= " OR is_active = '2' ";
+            if (strtolower($request['search']['value']) == 'active') {
+                $sql .= " OR is_active = 1 ";
+            } else if (strtolower($request['search']['value']) == 'inactive') {
+                $sql .= " OR is_active = 0 ";
             }
-            //  $sql .= " OR created_at Like '%" . $search_str . "%' )";            
-            if ($this->isValidDate($search_str)) {
-                $date = DateTime::createFromFormat('m-d-Y', $search_str);
-                $c_date = $date->format('Y-m-d');
-                $sql .= " OR date(created_at) = '$c_date' )";
-            } else {
-                $sql .= " )";
-            }
+            $sql .= " OR created_at Like '%" . $request['search']['value'] . "%' )";
         }
         $query = mysqli_query($con, $sql);
         $totalData = mysqli_num_rows($query);
         $totalFilter = $totalData;
 
         //Order
-        // $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-        //         $request['start'] . "  ," . $request['length'] . "  ";
-
-        $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'];
-        if ($request['length'] != -1) {
-            $sql .= " LIMIT " . $request['start'] . " ," . $request['length'];
-        }
+        $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -1101,31 +409,21 @@ class AjaxV2 extends Controller
             $subdata[] = $row[2]; //email
 
             $originalDate = $row[3];
-            // $newDate = date("m-d-Y h:i:s A", strtotime($originalDate));
-            $newDate = date("m-d-Y", strtotime($originalDate));
+            $newDate = date("m-d-Y h:i:s A", strtotime($originalDate));
 
             $subdata[] = $newDate; //created
 
-
             if ($row['is_active'] == 1) {
-                $status_a = '<span class="spanstatus badge badge-secondary">Active</span>';
-                $s_btn = 'btn-warning';
-                $s_icn = '<i class="fas fa-plane-slash"></i> Inactivate';
-            } else if ($row['is_active'] == 2) {
-                $status_a = '<span class="spanstatus badge badge-light">Dormant</span>';
-                $s_btn = 'btn-primary';
-                $s_icn = '<i class="fas fa-plane"></i> Activate';
+                $status_a = '<span class="spanstatus badge badge-primary">Active</span>';
             } else {
                 $status_a = '<span class="spanstatus badge badge-danger">Inactive</span>';
-                $s_btn = 'btn-primary';
-                $s_icn = '<i class="fas fa-plane"></i> Activate';
             }
 
             $subdata[] = $status_a; // status     
 
-            $block_icon = ' <a href="javascript:void(0)" class="btn btn-xs ' . $s_btn . ' status_link change_status" data-id="' . $row[0] . '" data-status="' . $row['is_active'] . '">' . $s_icn . '</a>';
+            $block_icon = ' <a href="javascript:void(0)" class="status_link change_status" data-id="' . $row[0] . '" data-status="' . $row['is_active'] . '"><i class="fa fa-ban" aria-hidden="true"></i></a>';
 
-            $subdata[] = '<a href="' . SITE_URL . '/admin/customer?edit=' . $row[0] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a> <a href="javascript:void(0);" class="btn btn-xs btn-danger delete_link" rel="' . $row[0] . '" item-ref="' . $row['user_type_ids'] . '"><i class="fas fa-trash-alt"></i> Delete</a> <a href="' . SITE_URL . '/analyses_rates?edit=' . $row[0] . '" class="btn btn-xs btn-info edit_link"><i class="fas fa-search-dollar"></i> Analyses Rates</a> ' . $block_icon;
+            $subdata[] = '<a href="' . SITE_URL . '/admin/customer?edit=' . $row[0] . '" class="edit_link"><i class="fa fa-pencil-square" aria-hidden="true"></i></a>' . $block_icon;
 
             $data[] = $subdata;
         }
@@ -1206,10 +504,9 @@ class AjaxV2 extends Controller
       }
      */
 
-    // worksheets
+// worksheets
 
-    public function get_open_worksheets_info()
-    {
+    public function get_open_worksheets_info() {
 
         $con = $this->getConnection();
         $request = $_REQUEST;
@@ -1229,7 +526,7 @@ class AjaxV2 extends Controller
         $totalData = mysqli_num_rows($query);
 
         ///  $totalFilter = $totalData;
-        //Search
+//Search
         $sql = "SELECT id, created, accession, patient_name, mrn, tat, webhook_customer, webhook_description FROM `Clario` WHERE assignee = 0";
         if (!empty($request['search']['value'])) {
             $sql .= " AND (id Like '%" . $request['search']['value'] . "%' ";
@@ -1246,9 +543,9 @@ class AjaxV2 extends Controller
 
         $totalFilter = $totalData;
 
-        //Order
+//Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -1267,8 +564,8 @@ class AjaxV2 extends Controller
             $subdata[] = $row[6]; //created
             $subdata[] = $row[7]; //created
             //create event on click in button edit in cell datatable for display modal dialog $row[0] is id in table on database
-            $subdata[] = '<a href="' . SITE_URL . '/adminV2/dicom_details?edit=' . $row[0] . '" class="btn btn-xs btn-success edit_link"><i class="fas fa-edit"></i> Edit</a>
-          <a href="' . SITE_URL . '/adminV2/dicom_details?delete=' . $row[0] . '" class="btn btn-xs btn-danger delete_link"><i class="fas fa-trash-alt"></i> Delete</a>';
+            $subdata[] = '<a href="' . SITE_URL . '/admin/dicom_details?edit=' . $row[0] . '" class="edit_link"><i class="fa fa-pencil-square" aria-hidden="true"></i></a>
+          <a href="' . SITE_URL . '/admin/dicom_details?delete=' . $row[0] . '" class="delete_link"><i class="fa fa-trash" aria-hidden="true"></i></a>';
 
             $data[] = $subdata;
         }
@@ -1285,8 +582,7 @@ class AjaxV2 extends Controller
         die;
     }
 
-    public function get_all_worksheet_current_month_info()
-    {
+    public function get_all_worksheet_current_month_info() {
 
         $con = $this->getConnection();
 
@@ -1372,7 +668,7 @@ class AjaxV2 extends Controller
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -1405,7 +701,8 @@ class AjaxV2 extends Controller
 
             $statusCheck = $row[9];
             if ($row[9] == 'Completed') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Completed</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Completed</span>';
                 $bgcolor = 'bg-success';
             }
             if ($row[9] == '') {
@@ -1414,19 +711,23 @@ Assigned')) . '">Not Assigned</span>';
                 $bgcolor = 'bg-danger';
             }
             if ($row[9] == 'In progress') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">In progress</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">In progress</span>';
                 $bgcolor = 'bg-info';
             }
             if ($row[9] == 'Under review') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Under review</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower
+                                        ($row[9])) . '">Under review</span>';
                 $bgcolor = 'bg-warning';
             }
             if ($row[9] == 'Cancelled' || $row[9] == 'CancelledAcc' || $row[9] == 'CancelledCust') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Cancelled</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Cancelled</span>';
                 $bgcolor = 'bg-default';
             }
             if ($row[9] == 'On hold') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">On hold</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">On hold</span>';
                 $bgcolor = 'bg-warning';
             }
 
@@ -1454,14 +755,13 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_all_worksheet_info()
-    {
+    public function get_all_worksheet_info() {
 
         $con = $this->getConnection();
 
         $request = $_REQUEST;
         $col = array(
-            0 => 'created',
+            0 => 'created_at',
             1 => 'site',
             2 => 'accession',
             3 => 'patient_name',
@@ -1473,7 +773,7 @@ Assigned')) . '">Not Assigned</span>';
             9 => 'review_user_id',
         );  //create column like table in database
         //echo $col[$request['order'][0]['column']];exit;
-        $sql = "SELECT Clario.id, Clario.created, Clario.accession ,Clario.patient_name ,Clario.mrn, Clario.tat, Clario.webhook_customer,  users.name, Clario.webhook_description,Clario.status,Clario.review_user_id, Clario.customer as assign_customer FROM Clario LEFT JOIN users on Clario.assignee = users.id order by Clario.id DESC";
+        $sql = "SELECT studies.studies_id, studies.created_at, studies.accession, studies.patient_name, studies.mrn, studies.actual_tat, dicom_webhook_details.webhook_customer, users.user_name as name, dicom_webhook_details.webhook_description, studies.status_ids, studies.second_analyst_id, studies.client_account_ids as assign_customer ,analysis_status.status as status FROM studies JOIN dicom_webhook_details on studies.dicom_webhook_ids= dicom_webhook_details.dicom_webhook_id JOIN analysis_status on analysis_status.status_id= studies.status_ids LEFT JOIN users on studies.analyst_id = users.user_id order by studies.studies_id DESC";
 
         $query = mysqli_query($con, $sql);
 
@@ -1482,14 +782,14 @@ Assigned')) . '">Not Assigned</span>';
         $totalFilter = $totalData;
 
         //Search
-        $sql = "SELECT Clario.id, Clario.created, Clario.accession, Clario.patient_name, Clario.mrn, Clario.tat, Clario.webhook_customer,  users.name, Clario.webhook_description,Clario.status,Clario.review_user_id, Clario.customer as assign_customer,cust.tat as dtat, Clario.last_modified FROM Clario LEFT JOIN users on Clario.assignee = users.id LEFT JOIN users as cust on Clario.customer = cust.id  WHERE 1=1 ";
+        $sql = "SELECT studies.studies_id, studies.created_at, studies.accession, studies.patient_name, studies.mrn, studies.actual_tat  as dtat, dicom_webhook_details.webhook_customer, users.user_name as name, dicom_webhook_details.webhook_description, studies.status_ids, studies.second_analyst_id, studies.client_account_ids as assign_customer, studies.updated_at FROM studies LEFT JOIN users on studies.analyst_id = users.user_id LEFT JOIN client_details as cust on studies.client_account_ids = client_details.client_account_id  WHERE 1=1 ";
 
         if (isset($_POST["is_assignee"]) && !empty($_POST['is_assignee'])) {
-            $sql .= " AND assignee = '" . $_POST["is_assignee"] . "' ";
+            $sql .= " AND analyst_id = '" . $_POST["is_assignee"] . "' ";
         }
 
         if (isset($_POST["is_day"]) && !empty($_POST['is_day'])) {
-            $sql .= " AND TIMESTAMPDIFF(DAY,Clario.created,NOW()) < '" . $_POST["is_day"] . "' ";
+            $sql .= " AND TIMESTAMPDIFF(DAY,studies.created_at,NOW()) < '" . $_POST["is_day"] . "' ";
         }
 
         /*  if (isset($_POST["status_select"]) && !empty($_POST['status_select'])) { 
@@ -1498,10 +798,10 @@ Assigned')) . '">Not Assigned</span>';
 
         if (isset($_POST["status_select"]) && !empty($_POST['status_select'])) {
             if ($_POST['status_select'] != 'Not Assigned') {
-                $sql .= " AND Clario.status = '" . $_POST["status_select"] . "' ";
+                $sql .= " AND studies.status_ids = '" . $_POST["status_select"] . "' ";
             }
-            if ($_POST['status_select'] == 'Not Assigned') {
-                $sql .= " AND Clario.status = '' ";
+            if ($_POST['status_select'] == '2') {
+                $sql .= " AND Clario.status_ids = '' ";
             }
         }
 
@@ -1557,7 +857,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -1592,7 +892,8 @@ Assigned')) . '">Not Assigned</span>';
             if ($row[9] == 'Completed') {
                 $manilDate = $row[13];
                 $newcomDate = date("m-d-Y h:i:s A", strtotime($manilDate));
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
                 $bgcolor = 'bg-success';
             }
             if ($row[9] == '') {
@@ -1601,20 +902,24 @@ Assigned')) . '">Not Assigned</span>';
                 $bgcolor = 'bg-danger';
             }
             if ($row[9] == 'In progress') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">In progress</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">In progress</span>';
                 $bgcolor = 'bg-info';
             }
             if ($row[9] == 'Under review') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Under review</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower
+                                        ($row[9])) . '">Under review</span>';
                 $bgcolor = 'bg-warning';
             }
-            //            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
+//            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
             if ($row[9] == 'Cancelled' || $row[9] == 'CancelledAcc' || $row[9] == 'CancelledCust') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Cancelled</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Cancelled</span>';
                 $bgcolor = 'bg-default';
             }
             if ($row[9] == 'On hold') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">On hold</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">On hold</span>';
                 $bgcolor = 'bg-warning';
             }
 
@@ -1646,8 +951,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_all_worksheet_info_tatmissing()
-    {
+    public function get_all_worksheet_info_tatmissing() {
 
         $con = $this->getConnection();
 
@@ -1704,7 +1008,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -1714,7 +1018,7 @@ Assigned')) . '">Not Assigned</span>';
 
         while ($row = mysqli_fetch_array($query)) {
             $subdata = array();
-            if (empty($row[5]) and empty($row[12])) {
+            if (empty($row[5]) AND empty($row[12])) {
                 // $row[5] = $row[5] . " hrs";
                 //} else {
                 // $row[5] = (!empty($row[12])) ? $row[12] . " hrs" : '0 hrs';
@@ -1743,7 +1047,8 @@ Assigned')) . '">Not Assigned</span>';
                 if ($row[9] == 'Completed') {
                     $manilDate = $row[13];
                     $newcomDate = date("m-d-Y h:i:s A", strtotime($manilDate));
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                            [9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
                     $bgcolor = 'bg-success';
                 }
                 if ($row[9] == '') {
@@ -1752,20 +1057,24 @@ Assigned')) . '">Not Assigned</span>';
                     $bgcolor = 'bg-danger';
                 }
                 if ($row[9] == 'In progress') {
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">In progress</span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                            [9])) . '">In progress</span>';
                     $bgcolor = 'bg-info';
                 }
                 if ($row[9] == 'Under review') {
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Under review</span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower
+                                            ($row[9])) . '">Under review</span>';
                     $bgcolor = 'bg-warning';
                 }
-                //            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
+//            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
                 if ($row[9] == 'Cancelled' || $row[9] == 'CancelledAcc' || $row[9] == 'CancelledCust') {
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Cancelled</span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                            [9])) . '">Cancelled</span>';
                     $bgcolor = 'bg-default';
                 }
                 if ($row[9] == 'On hold') {
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">On hold</span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                            [9])) . '">On hold</span>';
                     $bgcolor = 'bg-warning';
                 }
 
@@ -1798,8 +1107,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_all_worksheet_info_new()
-    {
+    public function get_all_worksheet_info_new() {
 
         $con = $this->getConnection();
 
@@ -1904,7 +1212,7 @@ Assigned')) . '">Not Assigned</span>';
         //        $request['start'] . "  ," . $request['length'] . "  ";
 
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
         $queryone = mysqli_query($con, $sql);
@@ -2018,7 +1326,7 @@ Assigned')) . '">Not Assigned</span>';
 
 
 
-        // $i = 0;
+// $i = 0;
 
         while ($row = mysqli_fetch_array($queryone)) {
             $subdata = array();
@@ -2067,7 +1375,8 @@ Assigned')) . '">Not Assigned</span>';
                 $statusCheck = $row[9];
 
                 if ($row[9] == 'On hold') {
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">On hold</span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                            [9])) . '">On hold</span>';
                     $bgcolor = 'bg-warning';
                 }
 
@@ -2135,7 +1444,8 @@ Assigned')) . '">Not Assigned</span>';
                 $statusCheck = $row[9];
 
                 if ($row[9] == 'In progress') {
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">In progress</span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                            [9])) . '">In progress</span>';
                     $bgcolor = 'bg-info';
                 }
 
@@ -2205,7 +1515,8 @@ Assigned')) . '">Not Assigned</span>';
                 if ($row[9] == 'Completed') {
                     $manilDate = $row[13];
                     $newcomDate = date("m-d-Y h:i:s A", strtotime($manilDate));
-                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
+                    $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                            [9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
                     $bgcolor = 'bg-success';
                 }
 
@@ -2321,8 +1632,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_all_stat_info()
-    {
+    public function get_all_stat_info() {
 
         $con = $this->getConnection();
 
@@ -2462,7 +1772,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -2505,7 +1815,8 @@ Assigned')) . '">Not Assigned</span>';
             if ($row[9] == 'Completed') {
                 $manilDate = $row[13];
                 $newcomDate = date("m-d-Y h:i:s A", strtotime($manilDate));
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Completed<br><span class="btn btn-light">' . $newcomDate . '</span></span>';
                 $bgcolor = 'bg-success';
             }
             if ($row[9] == '') {
@@ -2514,20 +1825,24 @@ Assigned')) . '">Not Assigned</span>';
                 $bgcolor = 'bg-danger';
             }
             if ($row[9] == 'In progress') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">In progress</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">In progress</span>';
                 $bgcolor = 'bg-info';
             }
             if ($row[9] == 'Under review') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Under review</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower
+                                        ($row[9])) . '">Under review</span>';
                 $bgcolor = 'bg-warning';
             }
-            //            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
+//            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
             if ($row[9] == 'Cancelled' || $row[9] == 'CancelledAcc' || $row[9] == 'CancelledCust') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Cancelled</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Cancelled</span>';
                 $bgcolor = 'bg-default';
             }
             if ($row[9] == 'On hold') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">On hold</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">On hold</span>';
                 $bgcolor = 'bg-warning';
             }
 
@@ -2559,8 +1874,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_assigned_worksheet_info()
-    {
+    public function get_assigned_worksheet_info() {
 
         $con = $this->getConnection();
 
@@ -2600,7 +1914,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -2656,8 +1970,7 @@ Assigned')) . '">Not Assigned</span>';
 
     /* analyst open worksheet */
 
-    public function get_analyst_open_worksheets_info()
-    {
+    public function get_analyst_open_worksheets_info() {
 
         $con = $this->getConnection();
         $request = $_REQUEST;
@@ -2678,7 +1991,7 @@ Assigned')) . '">Not Assigned</span>';
 
         $totalFilter = $totalData;
 
-        //Search
+//Search
         $sql = "SELECT id, created, accession, patient_name, mrn, tat, webhook_customer, webhook_description FROM `Clario` WHERE assignee = 0";
         if (!empty($request['search']['value'])) {
             $sql .= " AND (id Like '%" . $request['search']['value'] . "%' ";
@@ -2693,9 +2006,9 @@ Assigned')) . '">Not Assigned</span>';
         $query = mysqli_query($con, $sql);
         $totalData = mysqli_num_rows($query);
 
-        //Order
+//Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -2731,8 +2044,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_analyst_assigned_worksheet_info()
-    {
+    public function get_analyst_assigned_worksheet_info() {
 
         $con = $this->getConnection();
 
@@ -2772,7 +2084,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -2825,8 +2137,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_analyst_current_month_info()
-    {
+    public function get_analyst_current_month_info() {
         $con = $this->getConnection();
 
         $request = $_REQUEST;
@@ -2898,7 +2209,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -2928,7 +2239,8 @@ Assigned')) . '">Not Assigned</span>';
             $statusCheck = $row[9];
 
             if ($row[9] == 'Completed') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Completed</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Completed</span>';
                 $bgcolor = 'bg-success';
             }
             if ($row[9] == '') {
@@ -2937,20 +2249,24 @@ Assigned')) . '">Not Assigned</span>';
                 $bgcolor = 'bg-danger';
             }
             if ($row[9] == 'In progress') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">In progress</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">In progress</span>';
                 $bgcolor = 'bg-info';
             }
             if ($row[9] == 'Under review') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Under review</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower
+                                        ($row[9])) . '">Under review</span>';
                 $bgcolor = 'bg-warning';
             }
-            //            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
+//            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
             if ($row[9] == 'Cancelled' || $row[9] == 'CancelledAcc' || $row[9] == 'CancelledCust') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Cancelled</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Cancelled</span>';
                 $bgcolor = 'bg-default';
             }
             if ($row[9] == 'On hold') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">On hold</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">On hold</span>';
                 $bgcolor = 'bg-warning';
             }
 
@@ -2983,8 +2299,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function get_analyst_all_worksheet_info()
-    {
+    public function get_analyst_all_worksheet_info() {
 
         $con = $this->getConnection();
 
@@ -3065,7 +2380,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -3094,15 +2409,16 @@ Assigned')) . '">Not Assigned</span>';
 
             $subdata[] = $row[8];
             $statusCheck = $row[9];
-            //            if($row[9] == 'Completed'){ $row[9] = '<span class="btn btn-xs btn-success">Completed</span>';}
-            //            if($row[9] == ''){ $row[9] = '<span class="btn btn-xs btn-danger">Not Assigned</span>';}
-            //            if($row[9] == 'In progress'){ $row[9] = '<span class="btn btn-xs btn-info">In progress</span>';}
-            //            if($row[9] == 'Under review'){ $row[9] = '<span class="btn btn-xs btn-warning">Under review</span>';}
-            //            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
-            //            if($row[9] == 'On hold'){ $row[9] = '<span class="btn btn-xs btn-warning">On hold</span>';}
+//            if($row[9] == 'Completed'){ $row[9] = '<span class="btn btn-xs btn-success">Completed</span>';}
+//            if($row[9] == ''){ $row[9] = '<span class="btn btn-xs btn-danger">Not Assigned</span>';}
+//            if($row[9] == 'In progress'){ $row[9] = '<span class="btn btn-xs btn-info">In progress</span>';}
+//            if($row[9] == 'Under review'){ $row[9] = '<span class="btn btn-xs btn-warning">Under review</span>';}
+//            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
+//            if($row[9] == 'On hold'){ $row[9] = '<span class="btn btn-xs btn-warning">On hold</span>';}
 
             if ($row[9] == 'Completed') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Completed</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Completed</span>';
                 $bgcolor = 'bg-success';
             }
             if ($row[9] == '') {
@@ -3111,20 +2427,24 @@ Assigned')) . '">Not Assigned</span>';
                 $bgcolor = 'bg-danger';
             }
             if ($row[9] == 'In progress') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">In progress</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">In progress</span>';
                 $bgcolor = 'bg-info';
             }
             if ($row[9] == 'Under review') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Under review</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower
+                                        ($row[9])) . '">Under review</span>';
                 $bgcolor = 'bg-warning';
             }
-            //            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
+//            if($row[9] == 'Cancelled'){ $row[9] = '<span class="btn btn-xs btn-danger">Cancelled</span>';}
             if ($row[9] == 'Cancelled' || $row[9] == 'CancelledAcc' || $row[9] == 'CancelledCust') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">Cancelled</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">Cancelled</span>';
                 $bgcolor = 'bg-default';
             }
             if ($row[9] == 'On hold') {
-                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row[9])) . '">On hold</span>';
+                $row[9] = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($row
+                                        [9])) . '">On hold</span>';
                 $bgcolor = 'bg-warning';
             }
 
@@ -3158,445 +2478,444 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    //    public function get_study_time_report() {
-    //
-    //        $con = $this->getConnection();
-    //
-    //
-    //        /*  if(isset($_POST["is_customer"])){
-    //          $cus = $_POST["is_customer"]);
-    //          } else {
-    //          $cus = "";
-    //          } */
-    //
-    //        /*   $day = $_POST["is_day"];
-    //          $asn = $_POST["is_assignee"];
-    //          $sts = $_POST["is_assignee"]; */
-    //
-    //        $request = $_REQUEST;
-    //        $col = array(
-    //            0 => 'date',
-    //            1 => 'mrn',
-    //            2 => 'customer_id',
-    //            3 => 'accession',
-    //            4 => 'patient_name',
-    //            5 => 'analyst_hours',
-    //            6 => 'expected_time',
-    //            7 => 'image_specialist_hours',
-    //            8 => 'medical_director_hours',
-    //            9 => 'name',
-    //            10 => 'status'
-    //        );  //create column like table in database
-    //
-    //        $sql = "SELECT worksheets.id, worksheets.date, Clario.mrn, worksheets.customer_id, Clario.accession, Clario.patient_name, worksheets.analyst_hours, worksheets.expected_time, worksheets.image_specialist_hours, worksheets.medical_director_hours, users.name, worksheets.status FROM Clario JOIN worksheets ON Clario.id = worksheets.clario_id LEFT JOIN users ON worksheets.analyst = users.id";
-    //
-    //
-    //
-    //        $query = mysqli_query($con, $sql);
-    //
-    //        $totalData = mysqli_num_rows($query);
-    //
-    //        $totalFilter = $totalData;
-    //
-    //        //Search
-    //        $sql = "SELECT worksheets.id, worksheets.date, Clario.mrn, worksheets.customer_id, Clario.accession, Clario.patient_name,worksheets.analyst_hours,worksheets.expected_time,worksheets.image_specialist_hours,worksheets.medical_director_hours, users.name, worksheets.status FROM Clario JOIN worksheets ON Clario.id = worksheets.clario_id LEFT JOIN users ON worksheets.analyst = users.id WHERE 1=1";
-    //
-    //        if (!empty($_POST["is_day"]) && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_assignee"]) && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_customer"]) && $_POST["is_assignee"] == 0 && $_POST["is_day"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_status"]) && $_POST["is_assignee"] == 0 && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0 && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0) {
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //             $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //// combination of 2 is day
-    //
-    //
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_customer"]) && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_status"]) && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0 && $_POST["is_customer"] == 0) {
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //
-    //
-    //// combination of 2 assignee
-    //
-    //        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0) {
-    //  
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //
-    //
-    //// combination of 2 - customer		
-    //        if (!empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_time_mgmt"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0) {
-    //
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //// combination of 2 - status
-    //
-    //        if (!empty($_POST["is_time_mgmt"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0) {
-    //
-    //            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //
-    //
-    //        if (!empty($_POST["is_customer"]) && !empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_status"]) && !empty($_POST["is_time_mgmt"])) {
-    //
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    ////combinations of three 
-    //
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_status"]) && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_status"]) && $_POST["is_assignee"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //        }
-    //
-    //        
-    //         if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0) {
-    //
-    //            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //        
-    //        
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0) {
-    //
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //
-    //        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_time_mgmt"] == 0) {
-    //
-    //            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
-    //        }
-    //
-    //        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0 && $_POST["is_status"] == 0) {
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //
-    //        if (!empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0) {
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //
-    //
-    //// combinations of 4
-    //        
-    //        if (!empty($_POST["is_day"]) && !empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0) {
-    //            $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //        
-    //        
-    //          if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_status"] == 0) {
-    //            $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //        
-    //        
-    //          if (!empty($_POST["is_status"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0) {
-    //            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
-    //            if ($_POST["is_time_mgmt"] == "AtVsEat")
-    //                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
-    //            else if ($_POST["is_time_mgmt"] == "EatVsAt")
-    //                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
-    //            
-    //            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
-    //        }
-    //        
-    //        
-    //        
-    //
-    //
-    //        /* if(isset($_POST["is_customer"]))
-    //          {
-    //          $sql .= " AND worksheets.customer_id = '".$_POST["is_customer"]."' ";
-    //          }
-    //
-    //          elseif(isset($_POST["is_assignee"]))
-    //          {
-    //          $sql .= " AND worksheets.analyst = '".$_POST["is_assignee"]."' ";
-    //          }
-    //
-    //          elseif(isset($_POST["is_day"]))
-    //          {
-    //          $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '".$_POST["is_day"]."' ";
-    //          }
-    //
-    //          elseif(isset($_POST["is_day"]))
-    //          {
-    //          $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '".$_POST["is_day"]."' ";
-    //          } */
-    //
-    //        /* elseif (isset($_POST["is_customer"]) ) {
-    //          # code...
-    //          }
-    //         */
-    //
-    //        /* if(isset($_POST["date_search"]))
-    //          {
-    //          //$start_date = $_POST["start_date"]." 00:00:00";
-    //          //$end_date = $_POST["end_date"]." 00:00:00";
-    //
-    //
-    //          $sql .= 'AND worksheets.date BETWEEN "'.$_POST["start_date"].'" AND "'.$_POST["end_date"].'" AND ';
-    //          } */
-    //
-    //
-    //
-    //        if (!empty($request['search']['value'])) {
-    //            $sql.=" AND (worksheets.id Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR worksheets.date Like'" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR Clario.mrn Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR worksheets.customer_id Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR Clario.accession Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR Clario.patient_name Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR worksheets.analyst_hours Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR worksheets.expected_time Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR worksheets.image_specialist_hours Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR worksheets.medical_director_hours Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR users.name Like '" . $request['search']['value'] . "%' ";
-    //            $sql.=" OR worksheets.status Like '" . $request['search']['value'] . "%' )";
-    //        }
-    //        
-    //        
-    //        
-    //        
-    //        $query = mysqli_query($con, $sql);
-    //        $totalData = mysqli_num_rows($query);
-    //
-    //        //Order
-    //        $sql.=" ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-    //                $request['start'] . "  ," . $request['length'] . "  ";
-    //
-    //        $query = mysqli_query($con, $sql);
-    //
-    //        $data = array();
-    //        $current_customers = array();
-    //
-    //        while ($row = mysqli_fetch_array($query)) {
-    //            $subdata = array();
-    //
-    //            $originalDate = $row[1];
-    //            $newDate = date("m-d-Y h:i:s", strtotime($originalDate));
-    //
-    //            $subdata[] = $newDate; //
-    //            $subdata[] = $row[2];
-    //            if (!in_array($row[3], $current_customers)) {
-    //                $current_customers[] = $row[3];
-    //            }
-    //            $row[3] = $this->Admindb->get_name_by_id($row[3]);
-    //            $subdata[] = $row[3];
-    //            $subdata[] = $row[4];
-    //            $subdata[] = $row[5];
-    //
-    //            if (!$row[6] > 0) {
-    //                $row[6] = '<span class="btn btn-xs btn-warning">Time Not Added</span>';
-    //                // $row[6]='Time Not Added';
-    //            }
-    //
-    //            if ($row[6] > 0 && $row[7] > 0) {
-    //                if ($row[6] > $row[7]) {
-    ////                    $row[6] = '<span class="btn btn-xs btn-danger">' . $row[6] . '</span>';
-    ////                    $row[7] = '<span class="btn btn-xs btn-danger">' . $row[7] . '</span>';
-    //                     $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-up" style="font-size:20px;color:red"></i></span>';
-    //                    $row[7] = '<span>' . $row[7] . '</span>';
-    //                } else if ($row[6] < $row[7]) {
-    ////                    $row[6] = '<span class="btn btn-xs btn-success">' . $row[6] . '</span>';
-    ////                    $row[7] = '<span class="btn btn-xs btn-success">' . $row[7] . '</span>';
-    //                    $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-down" style="font-size:20px;color:green"></i></span>';
-    //                    $row[7] = '<span>' . $row[7] . '</span>';
-    //                }
-    //            }
-    //
-    //            $subdata[] = $row[6];
-    //            $subdata[] = $row[7];
-    //
-    //            $subdata[] = $row[8];
-    //            $subdata[] = $row[9];
-    //            $subdata[] = $row[10];
-    //
-    //            if ($row[11] == 'Completed') {
-    //                $row[11] = '<span class="btn btn-xs btn-success">Completed</span>';
-    //            }
-    //            if ($row[11] == 'In progress') {
-    //                $row[11] = '<span class="btn btn-xs btn-info">In progress</span>';
-    //            }
-    //            if ($row[11] == 'Under review') {
-    //                $row[11] = '<span class="btn btn-xs btn-warning">Under review</span>';
-    //            }
-    //            if ($row[11] == 'Cancelled') {
-    //                $row[11] = '<span class="btn btn-xs btn-danger">Cancelled</span>';
-    //            }
-    //            if ($row[11] == 'On hold') {
-    //                $row[11] = '<span class="btn btn-xs btn-warning">On hold</span>';
-    //            }
-    //
-    //            $subdata[] = $row[11];
-    //
-    //           // $subdata[] = $sql;
-    //            //print_r($row[8]);
-    //            $data[] = $subdata;
-    //        }
-    //
-    //        $json_data = array(
-    //            "draw" => intval($request['draw']),
-    //            "recordsTotal" => intval($totalData),
-    //            "recordsFiltered" => intval($totalFilter),
-    //            "data" => $data
-    //        );
-    //
-    //        echo json_encode($json_data);
-    //
-    //        die;
-    //    }
+//    public function get_study_time_report() {
+//
+//        $con = $this->getConnection();
+//
+//
+//        /*  if(isset($_POST["is_customer"])){
+//          $cus = $_POST["is_customer"]);
+//          } else {
+//          $cus = "";
+//          } */
+//
+//        /*   $day = $_POST["is_day"];
+//          $asn = $_POST["is_assignee"];
+//          $sts = $_POST["is_assignee"]; */
+//
+//        $request = $_REQUEST;
+//        $col = array(
+//            0 => 'date',
+//            1 => 'mrn',
+//            2 => 'customer_id',
+//            3 => 'accession',
+//            4 => 'patient_name',
+//            5 => 'analyst_hours',
+//            6 => 'expected_time',
+//            7 => 'image_specialist_hours',
+//            8 => 'medical_director_hours',
+//            9 => 'name',
+//            10 => 'status'
+//        );  //create column like table in database
+//
+//        $sql = "SELECT worksheets.id, worksheets.date, Clario.mrn, worksheets.customer_id, Clario.accession, Clario.patient_name, worksheets.analyst_hours, worksheets.expected_time, worksheets.image_specialist_hours, worksheets.medical_director_hours, users.name, worksheets.status FROM Clario JOIN worksheets ON Clario.id = worksheets.clario_id LEFT JOIN users ON worksheets.analyst = users.id";
+//
+//
+//
+//        $query = mysqli_query($con, $sql);
+//
+//        $totalData = mysqli_num_rows($query);
+//
+//        $totalFilter = $totalData;
+//
+//        //Search
+//        $sql = "SELECT worksheets.id, worksheets.date, Clario.mrn, worksheets.customer_id, Clario.accession, Clario.patient_name,worksheets.analyst_hours,worksheets.expected_time,worksheets.image_specialist_hours,worksheets.medical_director_hours, users.name, worksheets.status FROM Clario JOIN worksheets ON Clario.id = worksheets.clario_id LEFT JOIN users ON worksheets.analyst = users.id WHERE 1=1";
+//
+//        if (!empty($_POST["is_day"]) && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_assignee"]) && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_customer"]) && $_POST["is_assignee"] == 0 && $_POST["is_day"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_status"]) && $_POST["is_assignee"] == 0 && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0 && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0) {
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//             $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//// combination of 2 is day
+//
+//
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_customer"]) && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_status"]) && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0 && $_POST["is_customer"] == 0) {
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//
+//
+//// combination of 2 assignee
+//
+//        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0 && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0) {
+//  
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//
+//
+//// combination of 2 - customer		
+//        if (!empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_time_mgmt"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0) {
+//
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//// combination of 2 - status
+//
+//        if (!empty($_POST["is_time_mgmt"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0) {
+//
+//            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//
+//
+//        if (!empty($_POST["is_customer"]) && !empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_status"]) && !empty($_POST["is_time_mgmt"])) {
+//
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+////combinations of three 
+//
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_status"]) && $_POST["is_customer"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_status"]) && $_POST["is_assignee"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//        }
+//
+//        
+//         if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0) {
+//
+//            $sql .= " AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//        
+//        
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0 && $_POST["is_status"] == 0) {
+//
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//
+//        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_time_mgmt"] == 0) {
+//
+//            $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
+//        }
+//
+//        if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0 && $_POST["is_status"] == 0) {
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//
+//        if (!empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0) {
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//
+//
+//// combinations of 4
+//        
+//        if (!empty($_POST["is_day"]) && !empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0) {
+//            $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//        
+//        
+//          if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_status"] == 0) {
+//            $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//        
+//        
+//          if (!empty($_POST["is_status"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_day"] == 0) {
+//            $sql .= " AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.analyst = '" . $_POST["is_assignee"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
+//            if ($_POST["is_time_mgmt"] == "AtVsEat")
+//                $sql .= " AND worksheets.analyst_hours > worksheets.expected_time ";
+//            else if ($_POST["is_time_mgmt"] == "EatVsAt")
+//                $sql .= " AND worksheets.expected_time > worksheets.analyst_hours ";
+//            
+//            $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
+//        }
+//        
+//        
+//        
+//
+//
+//        /* if(isset($_POST["is_customer"]))
+//          {
+//          $sql .= " AND worksheets.customer_id = '".$_POST["is_customer"]."' ";
+//          }
+//
+//          elseif(isset($_POST["is_assignee"]))
+//          {
+//          $sql .= " AND worksheets.analyst = '".$_POST["is_assignee"]."' ";
+//          }
+//
+//          elseif(isset($_POST["is_day"]))
+//          {
+//          $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '".$_POST["is_day"]."' ";
+//          }
+//
+//          elseif(isset($_POST["is_day"]))
+//          {
+//          $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '".$_POST["is_day"]."' ";
+//          } */
+//
+//        /* elseif (isset($_POST["is_customer"]) ) {
+//          # code...
+//          }
+//         */
+//
+//        /* if(isset($_POST["date_search"]))
+//          {
+//          //$start_date = $_POST["start_date"]." 00:00:00";
+//          //$end_date = $_POST["end_date"]." 00:00:00";
+//
+//
+//          $sql .= 'AND worksheets.date BETWEEN "'.$_POST["start_date"].'" AND "'.$_POST["end_date"].'" AND ';
+//          } */
+//
+//
+//
+//        if (!empty($request['search']['value'])) {
+//            $sql.=" AND (worksheets.id Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR worksheets.date Like'" . $request['search']['value'] . "%' ";
+//            $sql.=" OR Clario.mrn Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR worksheets.customer_id Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR Clario.accession Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR Clario.patient_name Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR worksheets.analyst_hours Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR worksheets.expected_time Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR worksheets.image_specialist_hours Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR worksheets.medical_director_hours Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR users.name Like '" . $request['search']['value'] . "%' ";
+//            $sql.=" OR worksheets.status Like '" . $request['search']['value'] . "%' )";
+//        }
+//        
+//        
+//        
+//        
+//        $query = mysqli_query($con, $sql);
+//        $totalData = mysqli_num_rows($query);
+//
+//        //Order
+//        $sql.=" ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
+//                $request['start'] . "  ," . $request['length'] . "  ";
+//
+//        $query = mysqli_query($con, $sql);
+//
+//        $data = array();
+//        $current_customers = array();
+//
+//        while ($row = mysqli_fetch_array($query)) {
+//            $subdata = array();
+//
+//            $originalDate = $row[1];
+//            $newDate = date("m-d-Y h:i:s", strtotime($originalDate));
+//
+//            $subdata[] = $newDate; //
+//            $subdata[] = $row[2];
+//            if (!in_array($row[3], $current_customers)) {
+//                $current_customers[] = $row[3];
+//            }
+//            $row[3] = $this->Admindb->get_name_by_id($row[3]);
+//            $subdata[] = $row[3];
+//            $subdata[] = $row[4];
+//            $subdata[] = $row[5];
+//
+//            if (!$row[6] > 0) {
+//                $row[6] = '<span class="btn btn-xs btn-warning">Time Not Added</span>';
+//                // $row[6]='Time Not Added';
+//            }
+//
+//            if ($row[6] > 0 && $row[7] > 0) {
+//                if ($row[6] > $row[7]) {
+////                    $row[6] = '<span class="btn btn-xs btn-danger">' . $row[6] . '</span>';
+////                    $row[7] = '<span class="btn btn-xs btn-danger">' . $row[7] . '</span>';
+//                     $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-up" style="font-size:20px;color:red"></i></span>';
+//                    $row[7] = '<span>' . $row[7] . '</span>';
+//                } else if ($row[6] < $row[7]) {
+////                    $row[6] = '<span class="btn btn-xs btn-success">' . $row[6] . '</span>';
+////                    $row[7] = '<span class="btn btn-xs btn-success">' . $row[7] . '</span>';
+//                    $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-down" style="font-size:20px;color:green"></i></span>';
+//                    $row[7] = '<span>' . $row[7] . '</span>';
+//                }
+//            }
+//
+//            $subdata[] = $row[6];
+//            $subdata[] = $row[7];
+//
+//            $subdata[] = $row[8];
+//            $subdata[] = $row[9];
+//            $subdata[] = $row[10];
+//
+//            if ($row[11] == 'Completed') {
+//                $row[11] = '<span class="btn btn-xs btn-success">Completed</span>';
+//            }
+//            if ($row[11] == 'In progress') {
+//                $row[11] = '<span class="btn btn-xs btn-info">In progress</span>';
+//            }
+//            if ($row[11] == 'Under review') {
+//                $row[11] = '<span class="btn btn-xs btn-warning">Under review</span>';
+//            }
+//            if ($row[11] == 'Cancelled') {
+//                $row[11] = '<span class="btn btn-xs btn-danger">Cancelled</span>';
+//            }
+//            if ($row[11] == 'On hold') {
+//                $row[11] = '<span class="btn btn-xs btn-warning">On hold</span>';
+//            }
+//
+//            $subdata[] = $row[11];
+//
+//           // $subdata[] = $sql;
+//            //print_r($row[8]);
+//            $data[] = $subdata;
+//        }
+//
+//        $json_data = array(
+//            "draw" => intval($request['draw']),
+//            "recordsTotal" => intval($totalData),
+//            "recordsFiltered" => intval($totalFilter),
+//            "data" => $data
+//        );
+//
+//        echo json_encode($json_data);
+//
+//        die;
+//    }
 
 
-    public function get_study_time_report_old()
-    {
+    public function get_study_time_report() {
 
         $con = $this->getConnection();
 
         $request = $_REQUEST;
-        //        $col = array(
-        //            0 => 'date',
-        //            1 => 'mrn',
-        //            2 => 'customer_id',
-        //            3 => 'accession',
-        //            4 => 'patient_name',
-        //            5 => 'analyst_hours',
-        //            6 => 'expected_time',
-        //            7 => 'image_specialist_hours',
-        //            8 => 'medical_director_hours',
-        //            9 => 'name',
-        //            10 => 'status'
-        //        );  //create column like table in database
+//        $col = array(
+//            0 => 'date',
+//            1 => 'mrn',
+//            2 => 'customer_id',
+//            3 => 'accession',
+//            4 => 'patient_name',
+//            5 => 'analyst_hours',
+//            6 => 'expected_time',
+//            7 => 'image_specialist_hours',
+//            8 => 'medical_director_hours',
+//            9 => 'name',
+//            10 => 'status'
+//        );  //create column like table in database
 
 
         $col = array(
@@ -3656,7 +2975,7 @@ Assigned')) . '">Not Assigned</span>';
             //  $sql .= " AND worksheets.analyst_hours > 0 AND worksheets.expected_time > 0";
         }
 
-        // combination of 2 is day
+// combination of 2 is day
 
 
         if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && $_POST["is_customer"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
@@ -3688,7 +3007,7 @@ Assigned')) . '">Not Assigned</span>';
 
 
 
-        // combination of 2 assignee
+// combination of 2 assignee
 
         if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
 
@@ -3715,7 +3034,7 @@ Assigned')) . '">Not Assigned</span>';
 
 
 
-        // combination of 2 - customer		
+// combination of 2 - customer		
         if (!empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_time_mgmt"] == 0) {
 
             $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
@@ -3735,7 +3054,7 @@ Assigned')) . '">Not Assigned</span>';
             }
         }
 
-        // combination of 2 - status
+// combination of 2 - status
 
         if (!empty($_POST["is_time_mgmt"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0) {
 
@@ -3767,7 +3086,7 @@ Assigned')) . '">Not Assigned</span>';
             }
         }
 
-        //combinations of three 
+//combinations of three 
 
         if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
 
@@ -3849,7 +3168,7 @@ Assigned')) . '">Not Assigned</span>';
         }
 
 
-        // combinations of 4
+// combinations of 4
 
         if (!empty($_POST["is_day"]) && !empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0) {
             $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
@@ -3920,7 +3239,7 @@ Assigned')) . '">Not Assigned</span>';
 
         //Order
         $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
-            $request['start'] . "  ," . $request['length'] . "  ";
+                $request['start'] . "  ," . $request['length'] . "  ";
 
         $query = mysqli_query($con, $sql);
 
@@ -3930,65 +3249,65 @@ Assigned')) . '">Not Assigned</span>';
         while ($row = mysqli_fetch_array($query)) {
             $subdata = array();
 
-            //            $originalDate = $row[1];
-            //            $newDate = date("m-d-Y h:i:s", strtotime($originalDate));
-            //
-            //            $subdata[] = $newDate; //
-            //            
-            //            $subdata[] = $row[2];
-            //            if (!in_array($row[3], $current_customers)) {
-            //                $current_customers[] = $row[3];
-            //            }
-            //            $row[3] = $this->Admindb->get_name_by_id($row[3]);
-            //            $subdata[] = $row[3];
-            //            $subdata[] = $row[4];
-            //            
-            //            
-            //            $subdata[] = $row[5];
-            //
-            //            if (!$row[6] > 0) {
-            //                $row[6] = '<span class="btn btn-xs btn-warning">Time Not Added</span>';
-            //                // $row[6]='Time Not Added';
-            //            }
-            //
-            //            if ($row[6] > 0 && $row[7] > 0) {
-            //                if ($row[6] > $row[7]) {
-            ////                    $row[6] = '<span class="btn btn-xs btn-danger">' . $row[6] . '</span>';
-            ////                    $row[7] = '<span class="btn btn-xs btn-danger">' . $row[7] . '</span>';
-            //                     $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-up" style="font-size:20px;color:red"></i></span>';
-            //                    $row[7] = '<span>' . $row[7] . '</span>';
-            //                } else if ($row[6] < $row[7]) {
-            ////                    $row[6] = '<span class="btn btn-xs btn-success">' . $row[6] . '</span>';
-            ////                    $row[7] = '<span class="btn btn-xs btn-success">' . $row[7] . '</span>';
-            //                    $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-down" style="font-size:20px;color:green"></i></span>';
-            //                    $row[7] = '<span>' . $row[7] . '</span>';
-            //                }
-            //            }
-            //
-            //            $subdata[] = $row[6];
-            //            $subdata[] = $row[7];
-            //
-            //            $subdata[] = $row[8];
-            //            $subdata[] = $row[9];
-            //            $subdata[] = $row[10];
-            //
-            //            if ($row[11] == 'Completed') {
-            //                $row[11] = '<span class="btn btn-xs btn-success">Completed</span>';
-            //            }
-            //            if ($row[11] == 'In progress') {
-            //                $row[11] = '<span class="btn btn-xs btn-info">In progress</span>';
-            //            }
-            //            if ($row[11] == 'Under review') {
-            //                $row[11] = '<span class="btn btn-xs btn-warning">Under review</span>';
-            //            }
-            //            if ($row[11] == 'Cancelled') {
-            //                $row[11] = '<span class="btn btn-xs btn-danger">Cancelled</span>';
-            //            }
-            //            if ($row[11] == 'On hold') {
-            //                $row[11] = '<span class="btn btn-xs btn-warning">On hold</span>';
-            //            }
-            //
-            //            $subdata[] = $row[11];
+//            $originalDate = $row[1];
+//            $newDate = date("m-d-Y h:i:s", strtotime($originalDate));
+//
+//            $subdata[] = $newDate; //
+//            
+//            $subdata[] = $row[2];
+//            if (!in_array($row[3], $current_customers)) {
+//                $current_customers[] = $row[3];
+//            }
+//            $row[3] = $this->Admindb->get_name_by_id($row[3]);
+//            $subdata[] = $row[3];
+//            $subdata[] = $row[4];
+//            
+//            
+//            $subdata[] = $row[5];
+//
+//            if (!$row[6] > 0) {
+//                $row[6] = '<span class="btn btn-xs btn-warning">Time Not Added</span>';
+//                // $row[6]='Time Not Added';
+//            }
+//
+//            if ($row[6] > 0 && $row[7] > 0) {
+//                if ($row[6] > $row[7]) {
+////                    $row[6] = '<span class="btn btn-xs btn-danger">' . $row[6] . '</span>';
+////                    $row[7] = '<span class="btn btn-xs btn-danger">' . $row[7] . '</span>';
+//                     $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-up" style="font-size:20px;color:red"></i></span>';
+//                    $row[7] = '<span>' . $row[7] . '</span>';
+//                } else if ($row[6] < $row[7]) {
+////                    $row[6] = '<span class="btn btn-xs btn-success">' . $row[6] . '</span>';
+////                    $row[7] = '<span class="btn btn-xs btn-success">' . $row[7] . '</span>';
+//                    $row[6] = '<span>' . $row[6] . ' <i class="fa fa-arrow-down" style="font-size:20px;color:green"></i></span>';
+//                    $row[7] = '<span>' . $row[7] . '</span>';
+//                }
+//            }
+//
+//            $subdata[] = $row[6];
+//            $subdata[] = $row[7];
+//
+//            $subdata[] = $row[8];
+//            $subdata[] = $row[9];
+//            $subdata[] = $row[10];
+//
+//            if ($row[11] == 'Completed') {
+//                $row[11] = '<span class="btn btn-xs btn-success">Completed</span>';
+//            }
+//            if ($row[11] == 'In progress') {
+//                $row[11] = '<span class="btn btn-xs btn-info">In progress</span>';
+//            }
+//            if ($row[11] == 'Under review') {
+//                $row[11] = '<span class="btn btn-xs btn-warning">Under review</span>';
+//            }
+//            if ($row[11] == 'Cancelled') {
+//                $row[11] = '<span class="btn btn-xs btn-danger">Cancelled</span>';
+//            }
+//            if ($row[11] == 'On hold') {
+//                $row[11] = '<span class="btn btn-xs btn-warning">On hold</span>';
+//            }
+//
+//            $subdata[] = $row[11];
             // Date -0
             $originalDate = $row[1];
             $newDate = date("m-d-Y h:i:s A", strtotime($originalDate));
@@ -4025,22 +3344,14 @@ Assigned')) . '">Not Assigned</span>';
             if (!empty($row[10])) {
 
                 $workTime = explode(',', $row[10]);
-                for (
-                    $i = 0;
-                    $i < count($workTime);
-                    $i++
-                ) {
+                for ($i = 0; $i < count($workTime); $i++) {
                     $workTimeTotal = $workTimeTotal + $workTime[$i];
                 }
             }
             if (!empty($row[11])) {
 
                 $excateAnslyses = explode(',', $row[11]);
-                for (
-                    $j = 0;
-                    $j < count($excateAnslyses);
-                    $j++
-                ) {
+                for ($j = 0; $j < count($excateAnslyses); $j++) {
                     $timeValue = $this->Analyst->getexacttime($excateAnslyses[$j]);
                     $excateTotalTime = $excateTotalTime + $timeValue;
                 }
@@ -4112,8 +3423,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function study_time_graph_data()
-    {
+    public function study_time_graph_data() {
         $con = $this->getConnection();
         $request = $_REQUEST;
         $col = array(
@@ -4180,8 +3490,7 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function study_time_graph()
-    {
+    public function study_time_graph() {
 
         $con = $this->getConnection();
 
@@ -4200,8 +3509,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE              :  15-10-2018
       ------------------------------------------------------------------------------ */
 
-    public function userreview()
-    {
+    public function userreview() {
         $userid = $_POST['analyst'];
         $reviewid = isset($_POST['reviewid']) ? $_POST['reviewid'] : '';
         $analystHours = isset($_POST['analystHours']) ? $_POST['analystHours'] : '';
@@ -4215,8 +3523,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE              :  13-05-2019
       ------------------------------------------------------------------------------ */
 
-    public function getreview()
-    {
+    public function getreview() {
         $reviewid = $_POST['reviewid'];
         $result = $this->Admindb->getreviewcompleted($reviewid);
         echo json_encode($result);
@@ -4228,8 +3535,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  23-04-2019
       ------------------------------------------------------------------------------ */
 
-    public function ratedetails()
-    {
+    public function ratedetails() {
         //echo 1;
 
         $reviewid = $_POST['reviewid'];
@@ -4243,8 +3549,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  09-08-2019
       ------------------------------------------------------------------------------ */
 
-    public function ajaxGetAssignedCustomerInfo()
-    {
+    public function ajaxGetAssignedCustomerInfo() {
         $data['data'] = $this->Assigndb->getAllAssignedCustommers();
         echo json_encode($data);
         exit;
@@ -4255,8 +3560,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  09-08-2019
       ------------------------------------------------------------------------------ */
 
-    public function ajaxGetAssignedCustomerInfoDashboard()
-    {
+    public function ajaxGetAssignedCustomerInfoDashboard() {
         $analyst_id = $this->user->id;
         $data['data'] = $this->Assigndb->getAssignedCustommersDashboard($analyst_id);
         echo json_encode($data);
@@ -4268,8 +3572,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  12-08-2019
       ------------------------------------------------------------------------------ */
 
-    public function ajaxchangeStatus()
-    {
+    public function ajaxchangeStatus() {
         $id_status = $_REQUEST['id'];
         $new_status = ($_REQUEST['status'] == 1) ? 5 : 1;
         $status = $this->Assigndb->statusUpdate($id_status, $new_status);
@@ -4281,8 +3584,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  12-08-2019
       ------------------------------------------------------------------------------ */
 
-    public function ajaxDeleteAdminAssigned()
-    {
+    public function ajaxDeleteAdminAssigned() {
         $id_del = $_REQUEST['id'];
         $status = $this->Assigndb->delete('adm_admin_customer_assign', $id_del);
         echo json_encode($status);
@@ -4293,8 +3595,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  24-08-2019
       ------------------------------------------------------------------------------ */
 
-    public function ajaxUploadAgreements()
-    {
+    public function ajaxUploadAgreements() {
         //print_r($_REQUEST);
         //print_r($_FILES);exit;
         $doc_count = (isset($_REQUEST['doc_count'])) ? $_REQUEST['doc_count'] : 0;
@@ -4303,11 +3604,7 @@ Assigned')) . '">Not Assigned</span>';
         $message = '';
         $allowed = array("pdf", "doc", "docx");
         if ($doc_count > 0) {
-            for (
-                $i = 1;
-                $i <= $doc_count;
-                $i++
-            ) {
+            for ($i = 1; $i <= $doc_count; $i++) {
                 $doc_title = $_REQUEST['document_title_' . $i];
                 $doc_desc = $_REQUEST['document_desc_' . $i];
 
@@ -4392,8 +3689,7 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  26-08-2019
       ------------------------------------------------------------------------------ */
 
-    public function ajaxUploadBills()
-    {
+    public function ajaxUploadBills() {
         $bill_count = (isset($_REQUEST['bill_count'])) ? $_REQUEST['bill_count'] : 0;
         $customer = (isset($_REQUEST['customer'])) ? $_REQUEST['customer'] : 0;
         $status = 0;
@@ -4401,11 +3697,7 @@ Assigned')) . '">Not Assigned</span>';
         $allowed = array("pdf", "doc", "docx");
 
         if ($bill_count > 0) {
-            for (
-                $i = 1;
-                $i <= $bill_count;
-                $i++
-            ) {
+            for ($i = 1; $i <= $bill_count; $i++) {
                 $bill_title = $_REQUEST['bill_title_' . $i];
                 $bill_desc = $_REQUEST['bill_desc_' . $i];
                 $bill_invoice = $_REQUEST['bill_invoice_' . $i];
@@ -4504,53 +3796,31 @@ Assigned')) . '">Not Assigned</span>';
       @FUNCTION DATE               :  25-03-2021
       ------------------------------------------------------------------------------ */
 
-    public function ajaxChangeUserStatus()
-    {
+    public function ajaxChangeUserStatus() {
         $id_status = $_REQUEST['id'];
         $new_status = ($_REQUEST['status'] == 1) ? 0 : 1;
-        $user_type = !empty($_REQUEST['item_ref']) ? $_REQUEST['item_ref'] : '';
         $status = $this->Admindb->userStatusUpdate($id_status, $new_status);
-        if ($user_type == '5') {
-            $client_id = $this->Admindb->getClientId($id_status);
-            if (!empty($client_id)) {
-                $status0 = $this->Admindb->updateStatus('clients', $client_id, 'client_id', $new_status);
-            }
-            $status1 = $this->Admindb->updateStatus('client_details', $id_status, 'user_ids', $new_status);
-        }
         echo json_encode($status);
     }
 
-    public function ajaxChangeAnalysisStatus()
-    {
-        $id_status = $_REQUEST['id'];
-        $new_status = ($_REQUEST['status'] == 1) ? 0 : 1;
-        $status = $this->Admindb->analysesStatusUpdate($id_status, $new_status);
-        echo json_encode($status);
-    }
+    /* ----------------------- Users STATUS ---------------------------------
+      @ACCESS MODIFIERS            :  PUBLIC FUNCTION
+      @FUNCTION DATE               :  25-03-2021
+      ------------------------------------------------------------------------------ */
 
-    public function ajaxChangeAnalysisCatStatus()
-    {
-        $id_status = $_REQUEST['id'];
-        $new_status = ($_REQUEST['status'] == 1) ? 0 : 1;
-        $status = $this->Admindb->analysesCatStatusUpdate($id_status, $new_status);
-        echo json_encode($status);
-    }
-
-    public function ajaxChangeCustomerStatus()
-    {
+    public function ajaxChangeCustomerStatus() {
         $id_status = $_REQUEST['id'];
         $new_status = ($_REQUEST['status'] == 1) ? 0 : 1;
         $status = $this->Admindb->customerStatusUpdate($id_status, $new_status);
-        $client_id = $this->Admindb->getClientId($id_status);
-        if (!empty($client_id)) {
-            $status0 = $this->Admindb->updateStatus('clients', $client_id, 'client_id', $new_status);
-        }
-        $status1 = $this->Admindb->updateStatus('client_details', $id_status, 'user_ids', $new_status);
         echo json_encode($status);
     }
 
-    public function ajaxCustomerName()
-    {
+    /* ----------------------- Customer Basic Info ---------------------------------
+      @ACCESS MODIFIERS            :  PUBLIC FUNCTION
+      @FUNCTION DATE               :  21-02-2022
+      ------------------------------------------------------------------------------ */
+
+    public function ajaxCustomerName() {
         $id = $_REQUEST['id'];
         $name = $_REQUEST['name'];
         $status = 0;
@@ -4570,8 +3840,7 @@ Assigned')) . '">Not Assigned</span>';
         echo json_encode(array('status' => $status, 'msg' => $message));
     }
 
-    public function downloaddata_completefilternew()
-    {
+    public function downloaddata_completefilternew() {
         $con = $this->getConnection();
         $day_select = $_REQUEST['day_select'];
         $asignee_select = $_REQUEST['asignee_select'];
@@ -4683,14 +3952,13 @@ Assigned')) . '">Not Assigned</span>';
         echo ucwords(trim($columnHeader) . "\n" . trim($setData) . "\n");
     }
 
-    public function downloaddata_completefilternewcsv_studyrp()
-    {
+    public function downloaddata_completefilternewcsv_studyrp() {
 
         $con = $this->getConnection();
 
         $request = $_REQUEST;
 
-        //       
+//       
 
         $sql = "SELECT worksheets.id, worksheets.date, worksheets.customer_id, Clario.patient_name, worksheets.analyst_hours, worksheets.expected_time, worksheets.image_specialist_hours, worksheets.medical_director_hours, users.name, worksheets.status,worksheets.any_mint,worksheets.analyses_ids FROM Clario JOIN worksheets ON Clario.id = worksheets.clario_id LEFT JOIN users ON worksheets.analyst = users.id";
 
@@ -4764,7 +4032,7 @@ Assigned')) . '">Not Assigned</span>';
 
 
 
-        // combination of 2 assignee
+// combination of 2 assignee
 
         if (!empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
 
@@ -4791,7 +4059,7 @@ Assigned')) . '">Not Assigned</span>';
 
 
 
-        // combination of 2 - customer      
+// combination of 2 - customer      
         if (!empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_time_mgmt"] == 0) {
 
             $sql .= " AND worksheets.status = '" . $_POST["is_status"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' ";
@@ -4811,7 +4079,7 @@ Assigned')) . '">Not Assigned</span>';
             }
         }
 
-        // combination of 2 - status
+// combination of 2 - status
 
         if (!empty($_POST["is_time_mgmt"]) && !empty($_POST["is_status"]) && $_POST["is_day"] == 0 && $_POST["is_assignee"] == 0 && $_POST["is_customer"] == 0) {
 
@@ -4843,7 +4111,7 @@ Assigned')) . '">Not Assigned</span>';
             }
         }
 
-        //combinations of three 
+//combinations of three 
 
         if (!empty($_POST["is_day"]) && !empty($_POST["is_assignee"]) && !empty($_POST["is_customer"]) && $_POST["is_status"] == 0 && $_POST["is_time_mgmt"] == 0) {
 
@@ -4925,7 +4193,7 @@ Assigned')) . '">Not Assigned</span>';
         }
 
 
-        // combinations of 4
+// combinations of 4
 
         if (!empty($_POST["is_day"]) && !empty($_POST["is_status"]) && !empty($_POST["is_customer"]) && !empty($_POST["is_time_mgmt"]) && $_POST["is_assignee"] == 0) {
             $sql .= " AND TIMESTAMPDIFF(DAY,worksheets.date,NOW()) < '" . $_POST["is_day"] . "' AND worksheets.customer_id = '" . $_POST["is_customer"] . "' AND worksheets.status = '" . $_POST["is_status"] . "' ";
@@ -5041,22 +4309,14 @@ Assigned')) . '">Not Assigned</span>';
             if (!empty($row[10])) {
 
                 $workTime = explode(',', $row[10]);
-                for (
-                    $i = 0;
-                    $i < count($workTime);
-                    $i++
-                ) {
+                for ($i = 0; $i < count($workTime); $i++) {
                     $workTimeTotal = $workTimeTotal + $workTime[$i];
                 }
             }
             if (!empty($row[11])) {
 
                 $excateAnslyses = explode(',', $row[11]);
-                for (
-                    $j = 0;
-                    $j < count($excateAnslyses);
-                    $j++
-                ) {
+                for ($j = 0; $j < count($excateAnslyses); $j++) {
                     $timeValue = $this->Analyst->getexacttime($excateAnslyses[$j]);
                     $excateTotalTime = $excateTotalTime + $timeValue;
                 }
@@ -5090,20 +4350,19 @@ Assigned')) . '">Not Assigned</span>';
         }
         fclose($file);
 
-        // download
+// download
         header("Content-Description: File Transfer");
         header("Content-Disposition: attachment; filename=" . $filename);
         header("Content-Type: application/csv; ");
 
         readfile($filename);
 
-        // deleting file
+// deleting file
         unlink($filename);
         exit();
     }
 
-    public function downloaddata_completefilternewcsv()
-    {
+    public function downloaddata_completefilternewcsv() {
         $con = $this->getConnection();
         $day_select = $_REQUEST['day_select'];
         $asignee_select = $_REQUEST['asignee_select'];
@@ -5217,14 +4476,14 @@ Assigned')) . '">Not Assigned</span>';
         }
         fclose($file);
 
-        // download
+// download
         header("Content-Description: File Transfer");
         header("Content-Disposition: attachment; filename=" . $filename);
         header("Content-Type: application/csv; ");
 
         readfile($filename);
 
-        // deleting file
+// deleting file
         unlink($filename);
         exit();
     }
@@ -5244,8 +4503,7 @@ Assigned')) . '">Not Assigned</span>';
       echo ucwords(trim($columnHeader) . "\n" . trim($setData) . "\n");
       } */
 
-    public function downloaddata_monthlyfilternewcsv()
-    {
+    public function downloaddata_monthlyfilternewcsv() {
         $con = $this->getConnection();
         $day_select = $_REQUEST['day_select'];
         $asignee_select = $_REQUEST['asignee_select'];
@@ -5358,14 +4616,14 @@ Assigned')) . '">Not Assigned</span>';
         }
         fclose($file);
 
-        // download
+// download
         header("Content-Description: File Transfer");
         header("Content-Disposition: attachment; filename=" . $filename);
         header("Content-Type: application/csv; ");
 
         readfile($filename);
 
-        // deleting file
+// deleting file
         unlink($filename);
         exit();
     }
@@ -5385,8 +4643,7 @@ Assigned')) . '">Not Assigned</span>';
       echo ucwords(trim($columnHeader) . "\n" . trim($setData) . "\n");
       } */
 
-    public function users_csv()
-    {
+    public function users_csv() {
         $con = $this->getConnection();
 
         $sql = "SELECT user_id, user_name, email, created_at, is_active, user_type_ids FROM users ORDER BY user_id Desc";
@@ -5417,13 +4674,12 @@ Assigned')) . '">Not Assigned</span>';
             if ($row['is_active'] == 1) {
                 $status_a = 'Active';
             } else {
-                $status_a = 'Inactive';
+                $status_a = 'inactive';
             }
             $rowDatae = $status_a;
             $user_arr[] = array($i, $rowDataa, $rowDatab, $rowDatac, $rowDatad, $rowDatae);
         }
-
-        $filename = '/tmp/users.csv'; // Use a writable directory
+        $filename = 'users.csv';
         $file = fopen($filename, "w");
 
         foreach ($user_arr as $line) {
@@ -5431,19 +4687,19 @@ Assigned')) . '">Not Assigned</span>';
         }
         fclose($file);
 
-        // download
+// download
         header("Content-Description: File Transfer");
-        header("Content-Disposition: attachment; filename=" . basename($filename));
+        header("Content-Disposition: attachment; filename=" . $filename);
         header("Content-Type: application/csv; ");
+
         readfile($filename);
 
-        // deleting file
+// deleting file
         unlink($filename);
         exit();
     }
 
-    public function downloadstat_completefilternewcsv()
-    {
+    public function downloadstat_completefilternewcsv() {
         $con = $this->getConnection();
         $day_select = $_REQUEST['day_select'];
         $asignee_select = $_REQUEST['asignee_select'];
@@ -5568,20 +4824,19 @@ Assigned')) . '">Not Assigned</span>';
         }
         fclose($file);
 
-        // download
+// download
         header("Content-Description: File Transfer");
         header("Content-Disposition: attachment; filename=" . $filename);
         header("Content-Type: application/csv; ");
 
         readfile($filename);
 
-        // deleting file
+// deleting file
         unlink($filename);
         exit();
     }
 
-    public function get_billing_pdf_old()
-    {
+    public function get_billing_pdf_old() {
         $start_date = $_POST['start_date'];
         $end_date = $_POST['end_date'];
         $custumers = $_POST['custumers'];
@@ -5712,8 +4967,7 @@ Assigned')) . '">Not Assigned</span>';
         exit();
     }
 
-    public function get_billing_pdf()
-    {
+    public function get_billing_pdf() {
         // error_reporting(E_ALL);
         // ini_set('display_errors', '1');
         ini_set('memory_limit', '-1');
@@ -5835,8 +5089,7 @@ Assigned')) . '">Not Assigned</span>';
         exit();
     }
 
-    public function send_smtp_mail($filename, $email)
-    {
+    public function send_smtp_mail($filename, $email) {
         require 'phpmailer/phpmailer/src/Exception.php';
         require 'phpmailer/phpmailer/src/PHPMailer.php';
         require 'phpmailer/phpmailer/src/SMTP.php';
@@ -5875,8 +5128,7 @@ Assigned')) . '">Not Assigned</span>';
         }
     }
 
-    public function get_billing_detail_ajax()
-    {
+    public function get_billing_detail_ajax() {
         $data['user'] = $this->user;
         $ids = [];
         $form_data = $_POST;
@@ -5897,8 +5149,28 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function billing_summary_new()
-    {
+    public function billing_summary_analyst_ajax() {
+        $data['user'] = $this->user;
+        // $this->admin_sidebar($data);
+
+        $form_data = $_POST;
+        if (!empty($form_data)) {
+            $data['site'] = $ids = $form_data['site'];
+            if (!empty($form_data['site'])) {
+                $data['wsheet'] = $this->Admindb->billing_summary_analyst_new($ids, $form_data['start_date'], $form_data['end_date']);
+            } else {
+                $data['wsheet'] = $this->Admindb->billing_summary_analyst_all($form_data['start_date'], $form_data['end_date']);
+            }
+        } else {
+            $data['site'] = $ids = '';
+            $data['wsheet'] = $this->Admindb->billing_summary_analyst_all();
+        }
+        $custmernames = $this->Admindb->get_custmernames($ids);
+        $data['custmernames'] = $custmernames;
+        $this->view('admin/billing/ajax__analyst', $data);
+    }
+
+    public function billing_summary_new() {
 
         $data['user'] = $this->user;
         // $this->admin_sidebar($data);
@@ -5950,8 +5222,7 @@ Assigned')) . '">Not Assigned</span>';
         $this->view('admin/billing/summary_ajax', $data);
     }
 
-    public function billing_customer_new()
-    {
+    public function billing_customer_new() {
 
 
         $data['user'] = $this->user;
@@ -6007,1083 +5278,132 @@ Assigned')) . '">Not Assigned</span>';
         $this->view('admin/billing/customer_ajax', $data);
     }
 
-    // public function save_user_details()
-    // {
-    //     // header('Content-Type: application/json');
-    //     // echo json_encode($_POST);
-    //     // return;
-
-    //     $form_data = $_POST;
-    //     $success = 0;
-    //     $msg = '';
-    //     if (!empty($form_data['email']) && !empty($form_data['name']) && !empty($form_data['group_id']) && !empty($form_data['password'])) {
-    //         //$email_check = $this->Admindb->check_email($form_data['email']);
-    //         if (!empty($email_check)) {
-    //             $msg = 'Email Already Exists!';
-    //         } else {
-    //             $form_data['created'] = $form_data['updated'] = date("Y-m-d H:i:s");
-    //             $form_data['active'] = 1;
-    //             $form_data['created_by'] = $_SESSION['user']->user_id;
-    //             $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-    //             $status = $this->Admindb->add_user($form_data);
-    //             if ($status['type'] == 'success') {
-    //                 $success = 1;
-    //             }
-    //             if ($status['type'] == 'warning') {
-    //                 $success = 2;
-    //             }
-    //             $msg = !empty($status['msg']) ? $status['msg'] : '';
-    //         }
-    //     } else {
-    //         $msg = 'Please enter all the required details.';
-    //     }
-    //     echo json_encode(array("success" => $success, "msg" => $msg));
-    // }
-
-    public function save_user_details()
-    {
-        header('Content-Type: application/json');
-        // echo json_encode($_POST);
-        // return;
-
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        if (!empty($form_data['email']) && !empty($form_data['name']) && !empty($form_data['group_id']) && !empty($form_data['password'])) {
-            //$email_check = $this->Admindb->check_email($form_data['email']);
-            if (!empty($email_check)) {
-                $msg = 'Email Already Exists!';
-            } else {
-                $form_data['created'] = $form_data['updated'] = date("Y-m-d H:i:s");
-                $form_data['active'] = 1;
-                $form_data['created_by'] = $_SESSION['user']->user_id;
-                $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                $status = $this->Admindb->add_user($form_data);
-                if ($status['type'] == 'success') {
-                    $success = 1;
-                }
-                if ($status['type'] == 'warning') {
-                    $success = 2;
-                }
-                $msg = !empty($status['msg']) ? $status['msg'] : '';
-            }
-        } else {
-            $msg = 'Please enter all the required details.';
-        }
-        echo json_encode(array("success" => $success, "msg" => $msg));
-    }
-
-    // public function edit_user_details()
-    // {
-    //     // header('Content-Type: application/json');
-    //     // echo json_encode($_POST);
-    //     // return;
-
-    //     $form_data = $_POST;
-    //     $success = 0;
-    //     $msg = '';
-    //     if (!empty($form_data['email']) && !empty($form_data['name']) && !empty($form_data['group_id']) && !empty($form_data['id'])) {
-    //         $email_check = $this->Admindb->check_email($form_data['email'], $form_data['id']);
-    //         if (!empty($email_check)) {
-    //             $msg = 'Email Already Exists!';
-    //         } else {
-    //             $data['edit'] = $this->Admindb->user_by_id($form_data['id']);
-    //             if ($form_data['password'] == "") {
-    //                 $form_data['password'] = $data['edit']['password'];
-    //             } else {
-    //                 $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-    //             }
-    //             $status = $this->Admindb->user_update($form_data);
-    //             if ($status['type'] == 'success') {
-    //                 $success = 1;
-    //             }
-    //             $msg = !empty($status['msg']) ? $status['msg'] : '';
-    //         }
-    //     } else {
-    //         $msg = 'Please enter all the required details.';
-    //     }
-    //     echo json_encode(array("success" => $success, "msg" => $msg));
-    // }
-
-    // public function edit_user_details()
-    // {
-    //     // header('Content-Type: application/json');
-    //     // echo json_encode($_POST);
-    //     // return;
-
-    //     $form_data = $_POST;
-    //     $success = 0;
-    //     $msg = '';
-
-    //     $required_fields = ['email', 'name', 'group_id', 'id'];
-    //     $missing_fields = [];
-
-    //     foreach ($required_fields as $field) {
-    //         if (empty($form_data[$field])) {
-    //             $missing_fields[] = ucfirst(str_replace('_', ' ', $field)); // Make it more readable
-    //         }
-    //     }
-
-    //     if (!empty($missing_fields)) {
-    //         $msg = 'Missing required field(s): ' . implode(', ', $missing_fields) . '.';
-    //     } else {
-    //         $email_check = $this->Admindb->check_email($form_data['email'], $form_data['id']);
-    //         if (!empty($email_check)) {
-    //             $msg = 'Email Already Exists!';
-    //         } else {
-    //             $data['edit'] = $this->Admindb->user_by_id($form_data['id']);
-
-    //             if ($form_data['password'] == "") {
-    //                 $form_data['password'] = $data['edit']['password'];
-    //             } else {
-    //                 $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-    //             }
-
-    //             $status = $this->Admindb->user_update($form_data);
-    //             if ($status['type'] == 'success') {
-    //                 $success = 1;
-    //             }
-    //             $msg = !empty($status['msg']) ? $status['msg'] : '';
-    //         }
-    //     }
-
-    //     echo json_encode(array("success" => $success, "msg" => $msg));
-    // }
-
-    public function edit_user_details()
-    {
-        header('Content-Type: application/json');
-        // echo json_encode($_POST);
-        // return;
-
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        if (!empty($form_data['email']) && !empty($form_data['name']) && !empty($form_data['group_id']) && !empty($form_data['id'])) {
-            $email_check = $this->Admindb->check_email($form_data['email'], $form_data['id']);
-            if (!empty($email_check)) {
-                $msg = 'Email Already Exists!';
-            } else {
-                $data['edit'] = $this->Admindb->user_by_id($form_data['id']);
-                if ($form_data['password'] == "") {
-                    $form_data['password'] = $data['edit']['password'];
-                } else {
-                    $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                }
-                $status = $this->Admindb->user_update($form_data);
-                if ($status['type'] == 'success') {
-                    $success = 1;
-                }
-                $msg = !empty($status['msg']) ? $status['msg'] : '';
-            }
-        } else {
-            $msg = 'Please enter all the required details.';
-        }
-        echo json_encode(array("success" => $success, "msg" => $msg));
-    }
-
-
-    public function delete_user_details()
-    {
-        $form_data = $_POST;
-        $type = '';
-        $msg = '';
-        if (!empty($form_data['ref'])) {
-            $id = $form_data['ref'];
-            $user_type = $form_data['item_ref'];
-            $status = $this->Admindb->delete('users', $id, 'user_id');
-            if ($user_type == '5') {
-                $client_id = $this->Admindb->getClientId($id);
-                if (!empty($client_id)) {
-                    $status0 = $this->Admindb->delete('clients', $client_id, 'client_id');
-                }
-                $status1 = $this->Admindb->delete('client_details', $id, 'user_ids');
-            }
-            $type = !empty($status['type']) ? $status['type'] : '';
-            $msg = !empty($status['msg']) ? $status['msg'] : '';
-        }
-        echo json_encode(array("type" => $type, "msg" => $msg));
-    }
-
-    public function delete_analyses_category()
-    {
-        $form_data = $_POST;
-        $type = '';
-        $msg = '';
-        if (!empty($form_data['ref'])) {
-            $id = $form_data['ref'];
-            $status = $this->Admindb->delete('analyses_category', $id, 'category_id');
-            $type = !empty($status['type']) ? $status['type'] : '';
-            $msg = !empty($status['msg']) ? $status['msg'] : '';
-        }
-        echo json_encode(array("type" => $type, "msg" => $msg));
-    }
-
-    public function save_analyses_category()
-    {
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        if (!empty($form_data['category'])) {
-            $form_data['is_active'] = '1';
-            $form_data['created_by'] = $_SESSION['user']->user_id;
-            $status = $this->Admindb->analyses_category_add($form_data);
-            if ($status['type'] == 'success') {
-                $success = 1;
-            }
-            if ($status['type'] == 'warning') {
-                $success = 2;
-            }
-            $msg = !empty($status['msg']) ? $status['msg'] : '';
-        } else {
-            $msg = 'Please enter analysis category name.';
-        }
-        echo json_encode(array("success" => $success, "msg" => $msg));
-    }
-
-    public function edit_analyses_category_details()
-    {
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        if (!empty($form_data['category']) && !empty($form_data['id'])) {
-            $form_data['created_by'] = $_SESSION['user']->user_id;
-            $status = $this->Admindb->analyses_category_update($form_data);
-            if ($status['type'] == 'success') {
-                $success = 1;
-            }
-            if ($status['type'] == 'warning') {
-                $success = 2;
-            }
-            $msg = !empty($status['msg']) ? $status['msg'] : '';
-        } else {
-            $msg = 'Please enter all the required details.';
-        }
-        echo json_encode(array("success" => $success, "msg" => $msg));
-    }
-
-    public function save_analyses_details()
-    {
-        // header('Content-Type: application/json');
-        // echo json_encode($_POST);
-        // return;
-
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        if (!empty($form_data['name']) && !empty($form_data['category']) && !empty($form_data['part_number']) && !empty($form_data['price']) && !empty($form_data['minimum_time']) && !empty($form_data['description'])) {
-            $form_data['is_active'] = 1;
-            $form_data['created_by'] = $_SESSION['user']->user_id;
-
-            $tat_id = $form_data['minimum_time'] ?? null;
-            if ($tat_id) {
-                $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-                if (!empty($tat_det)) {
-                    $form_data['tat'] = $tat_det['tat'];
-                    $form_data['tat_unit'] = $tat_det['tat_unit'];
-                }
-            }
-
-            $status = $this->Admindb->analyses_add($form_data);
-
-            if ($status['type'] == 'warning') {
-                $success = $status['type'];
-            }
-
-            if ($status['type'] == 'success') {
-                $success = 1;
-            }
-            $msg = !empty($status['msg']) ? $status['msg'] : '';
-        }
-
-        echo json_encode(array("success" => $success, "msg" => $msg));
-    }
-
-    public function delete_analyses()
-    {
-        $form_data = $_POST;
-        $type = '';
-        $msg = '';
-        if (!empty($form_data['ref'])) {
-            $id = $form_data['ref'];
-            $deleted_at = date("Y-m-d H:i:s");
-            $deleted_by = $_SESSION['user']->user_id;
-            $status = $this->Admindb->delete_analyses($id, $deleted_at, $deleted_by);
-            $type = !empty($status['type']) ? $status['type'] : '';
-            $msg = !empty($status['msg']) ? $status['msg'] : '';
-        }
-        echo json_encode(array("type" => $type, "msg" => $msg));
-    }
-
-    public function edit_analyses_details()
-    {
-
-        // header('Content-Type: application/json');
-        // echo json_encode($_POST);
-        // return;
-
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        if (!empty($form_data['name']) && !empty($form_data['category']) && !empty($form_data['part_number']) && !empty($form_data['price']) && !empty($form_data['minimum_time']) && !empty($form_data['description']) && !empty($form_data['id'])) {
-            $form_data['updated_at'] = date("Y-m-d H:i:s");
-            $form_data['updated_by'] = $_SESSION['user']->user_id;
-
-            $tat_id = $form_data['minimum_time'] ?? null;
-            if ($tat_id) {
-                $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-                if (!empty($tat_det)) {
-                    $form_data['tat'] = $tat_det['tat'];
-                    $form_data['tat_unit'] = $tat_det['tat_unit'];
-                }
-            }
-
-            $status = $this->Admindb->analyses_update($form_data);
-
-            if ($status['type'] == 'warning') {
-                $success = $status['type'];
-            }
-
-            if ($status['type'] == 'info') {
-                $success = $status['type'];
-            }
-
-            if ($status['type'] == 'success') {
-                $success = 1;
-            }
-            $msg = !empty($status['msg']) ? $status['msg'] : '';
-        } else {
-            $msg = 'Please enter all the required details.';
-        }
-        echo json_encode(array("success" => $success, "msg" => $msg));
-    }
-
-    // public function save_customer_details()
-    // {
-    //     // header('Content-Type: application/json');
-    //     // echo json_encode($_POST);
-    //     // return;
-
-    //     $form_data = $_POST;
-    //     $success = 0;
-    //     $msg = '';
-    //     if (!empty($form_data['client_name']) && !empty($form_data['email'])) {
-    //         $form_data['created'] = date("Y-m-d H:i:s");
-    //         $form_data['active'] = 1;
-    //         $form_data['created_by'] = $_SESSION['user']->user_id;
-    //         $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-    //         $form_data['group_id'] = 5;
-    //         $form_data['name'] = $form_data['client_name'];
-    //         //$site_code_check = $this->Admindb->check_site_code($formdata);
-    //         $status = $this->Admindb->add_user($form_data);
-    //         if ($status['type'] == 'success') {
-    //             // $tat_det = array();
-    //             // $tat_id = $form_data['contract_tat'];
-    //             // $tat_det = $this->Admindb->get_tat_details_by_id($tat_id);
-    //             // $form_data['tat'] = $tat_det['tat'];
-    //             // $form_data['tat_unit'] = $tat_det['tat_unit'];
-
-    //             $tat_id = $form_data['contract_tat'] ?? null;
-    //             if ($tat_id) {
-    //                 $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-    //                 if (!empty($tat_det)) {
-    //                     $form_data['tat'] = $tat_det['tat'];
-    //                     $form_data['tat_unit'] = $tat_det['tat_unit'];
-    //                 }
-    //             }
-
-    //             $status1 = $this->Admindb->update_customer_details($status['customer_id'], $status['client_id'], $status['client_account_id'], $form_data);
-    //             $success = 1;
-    //         }
-    //         $msg = !empty($status['msg']) ? $status['msg'] : '';
-    //     }
-    //     echo json_encode(array("success" => $success, "msg" => $msg));
-    // }
-
-    // public function save_customer_details()
-    // {
-    //     $con = $this->getConnection();
-    //     header('Content-Type: application/json');
-
-    //     $form_data = $_POST;
-    //     $success = 0;
-    //     $msg = '';
-    //     $form_data['created_by'] = $_SESSION['user']->user_id;
-
-
-    //     $site_code = trim(mysqli_real_escape_string($con, $form_data['site_code']));
-    //     $created_by = (int) $form_data['created_by'];
-
-    //     $sql = "SELECT site_code FROM client_details WHERE site_code = '$site_code' AND created_by = $created_by AND is_deleted = '0' LIMIT 1";
-    //     $result = mysqli_query($con, $sql);
-
-    //     if ($result && mysqli_num_rows($result) > 0) {
-    //         echo json_encode([
-    //             'success' => 2,
-    //             'msg' => 'Site code already exists.',
-    //             'data' => mysqli_fetch_assoc($result)
-    //         ]);
-    //     } else {
-    //         // echo json_encode([
-    //         //     'success' => 0,
-    //         //     'msg' => 'Site code not found. It can be used.'
-    //         // ]);
-
-    //         if (!empty($form_data['client_name']) && !empty($form_data['email'])) {
-    //             $form_data['created'] = date("Y-m-d H:i:s");
-    //             $form_data['active'] = 1;
-    //             $form_data['created_by'] = $_SESSION['user']->user_id;
-    //             //$form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-    //             if (!empty($form_data['password'])) {
-    //                 $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-    //             } else {
-    //                 $form_data['password'] = '';
-    //             }
-    //             $form_data['group_id'] = 5;
-    //             $form_data['name'] = $form_data['client_name'];
-    //             //$site_code_check = $this->Admindb->check_site_code($formdata);
-    //             $status = $this->Admindb->add_user($form_data);
-    //             if ($status['type'] == 'success') {
-    //                 // $tat_det = array();
-    //                 // $tat_id = $form_data['contract_tat'];
-    //                 // $tat_det = $this->Admindb->get_tat_details_by_id($tat_id);
-    //                 // $form_data['tat'] = $tat_det['tat'];
-    //                 // $form_data['tat_unit'] = $tat_det['tat_unit'];
-
-    //                 $tat_id = $form_data['contract_tat'] ?? null;
-    //                 if ($tat_id) {
-    //                     $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-    //                     if (!empty($tat_det)) {
-    //                         $form_data['tat'] = $tat_det['tat'];
-    //                         $form_data['tat_unit'] = $tat_det['tat_unit'];
-    //                     }
-    //                 }
-
-    //                 $status1 = $this->Admindb->update_customer_details($status['customer_id'], $status['client_id'], $status['client_account_id'], $form_data);
-    //                 $success = 1;
-    //             }
-    //             $msg = !empty($status['msg']) ? $status['msg'] : '';
-    //         }
-    //         echo json_encode(array("success" => $success, "msg" => $msg));
-    //     }
-
-    //     exit;
-    // }
-
-    public function save_customer_details()
-    {
+    public function get_stat_info() {
         $con = $this->getConnection();
-        header('Content-Type: application/json');
-
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        $form_data['created_by'] = $_SESSION['user']->user_id;
-
-
-        $site_code = trim(mysqli_real_escape_string($con, $form_data['site_code']));
-        $created_by = (int) $form_data['created_by'];
-
-        $sql = "SELECT site_code FROM client_details WHERE site_code = '$site_code' AND created_by = $created_by AND is_deleted = '0' LIMIT 1";
-        $result = mysqli_query($con, $sql);
-
-        if ($result && mysqli_num_rows($result) > 0) {
-            echo json_encode([
-                'success' => 2,
-                'msg' => 'Site code already exists.',
-                'data' => mysqli_fetch_assoc($result)
-            ]);
-        } else {
-            // echo json_encode([
-            //     'success' => 0,
-            //     'msg' => 'Site code not found. It can be used.'
-            // ]);
-
-            if (!empty($form_data['client_name']) && !empty($form_data['email'])) {
-                $form_data['created'] = date("Y-m-d H:i:s");
-                $form_data['active'] = 1;
-                $form_data['created_by'] = $_SESSION['user']->user_id;
-                $form_data['password'] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                $form_data['group_id'] = 5;
-                $form_data['name'] = $form_data['client_name'];
-                //$site_code_check = $this->Admindb->check_site_code($formdata);
-                $status = $this->Admindb->add_user($form_data);
-                if ($status['type'] == 'success') {
-                    // $tat_det = array();
-                    // $tat_id = $form_data['contract_tat'];
-                    // $tat_det = $this->Admindb->get_tat_details_by_id($tat_id);
-                    // $form_data['tat'] = $tat_det['tat'];
-                    // $form_data['tat_unit'] = $tat_det['tat_unit'];
-
-                    $tat_id = $form_data['contract_tat'] ?? null;
-                    if ($tat_id) {
-                        $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-                        if (!empty($tat_det)) {
-                            $form_data['tat'] = $tat_det['tat'];
-                            $form_data['tat_unit'] = $tat_det['tat_unit'];
-                        }
-                    }
-
-                    $status1 = $this->Admindb->update_customer_details($status['customer_id'], $status['client_id'], $status['client_account_id'], $form_data);
-                    $success = 1;
-                }
-                $msg = !empty($status['msg']) ? $status['msg'] : '';
-            }
-            echo json_encode(array("success" => $success, "msg" => $msg));
-        }
-
-        exit;
-    }
-
-    public function save_new_customer_details()
-    {
-        $con = $this->getConnection();
-        header('Content-Type: application/json');
-
-        $form_data = $_POST;
-        $form_data['created_by'] = $_SESSION['user']->user_id ?? 0;
-
-        $site_code = trim(mysqli_real_escape_string($con, $form_data['site_code'] ?? ''));
-        $created_by = (int) $form_data['created_by'];
-
-        // Check duplicate site_code
-        $check_sitecode = $this->Admindb->check_duplicate_site_code($site_code, $created_by);
-        if ($check_sitecode) {
-            echo json_encode([
-                'success' => 2,
-                'msg' => 'Site code already exists.',
-                'data' => $check_sitecode
-            ]);
-            return;
-        }
-
-        // Validate required fields
-        if (empty($form_data['client_name']) || empty($form_data['email'])) {
-            echo json_encode(['success' => 0, 'msg' => 'Client Name and Email are required.']);
-            return;
-        }
-
-        $form_data['created'] = date("Y-m-d H:i:s");
-        $form_data['active'] = 1;
-        $form_data['group_id'] = 5;
-        $form_data['name'] = $form_data['client_name'];
-
-        $form_data['user_ids'] = 0;
-
-        // TAT details (optional)
-        $tat_id = $form_data['contract_tat'] ?? null;
-        if ($tat_id) {
-            $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-            $form_data['tat'] = $tat_det['tat'] ?? '';
-            $form_data['tat_unit'] = $tat_det['tat_unit'] ?? '';
-        } else {
-            $form_data['tat'] = '';
-            $form_data['tat_unit'] = '';
-        }
-
-        $status = $this->Admindb->add_the_new_client($form_data);
-
-        echo json_encode([
-            'success' => $status ? 1 : 0,
-            'msg' => $status ? 'Client details added successfully!' : 'Failed to add client client details.'
-        ]);
-    }
-
-
-    // public function edit_customer_details()
-    // {
-    //     $con = $this->getConnection();
-    //     header('Content-Type: application/json');
-    //     // echo json_encode($_POST);
-    //     // return;
-
-    //     $form_data = $_POST;
-    //     $success = 0;
-    //     $msg = '';
-    //     $form_data['created_by'] = $_SESSION['user']->user_id;
-
-    //     $site_code = trim(mysqli_real_escape_string($con, $form_data['site_code']));
-    //     $created_by = (int) $form_data['created_by'];
-
-
-
-    //     $sql = "SELECT site_code, client_account_id FROM client_details WHERE site_code = '$site_code' AND created_by = $created_by AND is_deleted = '0' LIMIT 1";
-    //     $result = mysqli_query($con, $sql);
-
-
-
-    //     if ($result && mysqli_num_rows($result) > 0) {
-
-    //         $row = mysqli_fetch_assoc($result);
-
-
-    //         if ($row['client_account_id'] != $form_data['client_account_id']) {
-    //             echo json_encode([
-    //                 'success' => 2,
-    //                 'msg' => 'Site code already exists.'
-    //             ]);
-    //         }
-    //     //     echo json_encode("Yes we exit the client code checking of site code.");
-    //     // return;
-    //     } else {
-
-    //         if (!empty($form_data['client_name']) && !empty($form_data['email'])) {
-    //             $customer_id = $form_data['id'];
-    //             $client_id = $form_data['client_id'];
-    //             $client_account_id = $form_data['client_account_id'];
-
-    //             $tat_id = $form_data['contract_tat'] ?? null;
-    //             if ($tat_id) {
-    //                 $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-    //                 if (!empty($tat_det)) {
-    //                     $form_data['tat'] = $tat_det['tat'];
-    //                     $form_data['tat_unit'] = $tat_det['tat_unit'];
-
-    //                     // echo json_encode(array("TAT" => $form_data['tat'], "TAT Unit" => $form_data['tat_unit']));
-    //                     // return;
-    //                 }
-    //             }
-
-    //             $counter = $this->Admindb->update_customer_details($customer_id, $client_id, $client_account_id, $form_data);
-    //             if ($counter > 0) {
-    //                 $email = $form_data['email'];
-    //                 $pword = password_hash($form_data['password'], PASSWORD_DEFAULT);
-    //                 $name = $form_data['client_name'];
-    //                 $upd = $this->Admindb->update_user_details($customer_id, $email, $pword, $name, $form_data['active']);
-    //                 $success = 1;
-    //                 $msg = 'Customer Details Saved Successfully.';
-    //             }
-    //         }
-    //         echo json_encode(array("success" => $success, "msg" => $msg));
-    //     }
-    // }
-
-    public function edit_customer_details()
-    {
-        $con = $this->getConnection();
-        header('Content-Type: application/json');
-        // echo json_encode($_POST);
-        // return;
-
-        $form_data = $_POST;
-        $success = 0;
-        $msg = '';
-        $form_data['created_by'] = $_SESSION['user']->user_id;
-
-        $site_code = trim(mysqli_real_escape_string($con, $form_data['site_code']));
-        $created_by = (int) $form_data['created_by'];
-
-
-
-        $sql = "SELECT site_code, client_account_id FROM client_details WHERE site_code = '$site_code' AND created_by = $created_by AND is_deleted = '0' LIMIT 1";
-        $result = mysqli_query($con, $sql);
-
-
-
-        if ($result && mysqli_num_rows($result) > 0) {
-
-            $row = mysqli_fetch_assoc($result);
-
-
-            if ($row['client_account_id'] != $form_data['client_account_id']) {
-                echo json_encode([
-                    'success' => 2,
-                    'msg' => 'Site code already exists.'
-                ]);
-                return;
-            }
-            //     echo json_encode("Yes we exit the client code checking of site code.");
-            // return;
-            else {
-
-                if (!empty($form_data['client_name']) && !empty($form_data['email'])) {
-                    $customer_id = $form_data['id'];
-                    $client_id = $form_data['client_id'];
-                    $client_account_id = $form_data['client_account_id'];
-
-                    $tat_id = $form_data['contract_tat'] ?? null;
-                    if ($tat_id) {
-                        $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-                        if (!empty($tat_det)) {
-                            $form_data['tat'] = $tat_det['tat'];
-                            $form_data['tat_unit'] = $tat_det['tat_unit'];
-
-                            // echo json_encode(array("TAT" => $form_data['tat'], "TAT Unit" => $form_data['tat_unit']));
-                            // return;
-                        }
-                    }
-
-                    $counter = $this->Admindb->update_customer_details($customer_id, $client_id, $client_account_id, $form_data);
-                    if ($counter > 0) {
-                        $email = $form_data['email'];
-                        //$pword = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                        if (!empty($form_data['password'])) {
-                            $pword = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                        } else {
-                            $pword = '';
-                        }
-
-                        $name = $form_data['client_name'];
-                        $upd = $this->Admindb->update_user_details($customer_id, $email, $pword, $name, $form_data['active']);
-                        $success = 1;
-                        $msg = 'Customer Details Saved Successfully.';
-                    }
-                }
-            }
-            //echo json_encode(array("success" => $success, "msg" => $msg));
-        } else {
-
-            if (!empty($form_data['client_name']) && !empty($form_data['email'])) {
-                $customer_id = $form_data['id'];
-                $client_id = $form_data['client_id'];
-                $client_account_id = $form_data['client_account_id'];
-
-                $tat_id = $form_data['contract_tat'] ?? null;
-                if ($tat_id) {
-                    $tat_det = $this->Admindb->get_newtat_details_by_id($tat_id);
-                    if (!empty($tat_det)) {
-                        $form_data['tat'] = $tat_det['tat'];
-                        $form_data['tat_unit'] = $tat_det['tat_unit'];
-
-                        // echo json_encode(array("TAT" => $form_data['tat'], "TAT Unit" => $form_data['tat_unit']));
-                        // return;
-                    }
-                }
-
-                $counter = $this->Admindb->update_customer_details($customer_id, $client_id, $client_account_id, $form_data);
-                if ($counter > 0) {
-                    $email = $form_data['email'];
-                    //$pword = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                    if (!empty($form_data['password'])) {
-                        $pword = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                    } else {
-                        $pword = '';
-                    }
-                    $name = $form_data['client_name'];
-                    $upd = $this->Admindb->update_user_details($customer_id, $email, $pword, $name, $form_data['active']);
-                    $success = 1;
-                    $msg = 'Customer Details Saved Successfully.';
-                }
-            }
-        }
-        echo json_encode(array("success" => $success, "msg" => $msg));
-    }
-
-    public function save_analyses_price_details()
-    {
-        $request = $_REQUEST;
-        $success = 0;
-        if (!empty($request['id'])) {
-            $client_account_id = trim($request['id']);
-            $analysis_id_arr = $request['analysis_id'];
-            $created_by = $_SESSION['user']->user_id;
-            foreach ($analysis_id_arr as $key => $analysis_ids) {
-                if (!empty($analysis_ids)) {
-                    $rate = trim($request['rate'][$key]);
-                    $code = trim($request['code'][$key]);
-                    $min_time = trim($request['min_time'][$key]);
-                    $analysis_name = trim($request['analysis_name'][$key]);
-                    $analysis_desc = trim($request['analysis_desc'][$key]);
-                    $analysis_client_price_id = trim($request['analysis_client_price_id'][$key]);
-                    if ($analysis_client_price_id > 0) {
-                        $success += $this->Admindb->analyses_rate_update($analysis_client_price_id, $analysis_ids, $client_account_id, $rate, $code, $min_time, $analysis_name, $analysis_desc, $created_by);
-                    } else {
-                        $success += $this->Admindb->analyses_rate_add($analysis_ids, $client_account_id, $rate, $code, $min_time, $analysis_name, $analysis_desc, $created_by);
-                    }
-                }
-            }
-        }
-        echo json_encode(array("success" => $success));
-    }
-
-    public function delete_analyses_price_details()
-    {
-        $request = $_REQUEST;
-        $success = 0;
-        if (!empty($request['client_account_id'])) {
-            $client_account_id = trim($request['client_account_id']);
-            $analysis_client_price_ids = $request['selectedValues'];
-            $deleted_by = $_SESSION['user']->user_id;
-            $success = $this->Admindb->analyses_rate_delete($client_account_id, $deleted_by, $analysis_client_price_ids);
-        }
-        echo json_encode(array("success" => $success));
-    }
-
-    public function analysis_price_ajax()
-    {
-        $data = [];
-        $data['edit']['client_account_id'] = $_REQUEST['clientAccountId'];
-        $this->view('v2/admin/customer/analysis_price_ajax', $data);
-    }
-
-    public function save_monthly_discount_details()
-    {
-        $request = $_REQUEST;
-        $success = 0;
-        if (!empty($request['id'])) {
-            $client_account_id = trim($request['id']);
-            $discount_id_arr = $request['discount_id'];
-            $created_by = $_SESSION['user']->user_id;
-            //$created_at = date("Y-m-d H:i:s");
-            //$date = date('Y-m', strtotime('+1 month'));
-            //$valid_from = $date . '-01';
-            $valid_from = date('Y-m-01', strtotime('first day of next month'));
-            $valid_to = date('Y-m-t', strtotime('first day of next month'));
-            foreach ($discount_id_arr as $key => $discount_ids) {
-                $minimum_value = trim($request['minimum_value'][$key]);
-                $maximum_value = trim($request['maximum_value'][$key]);
-                $percentage = trim($request['percentage'][$key]);
-                if (!empty($discount_ids)) {
-                    $success += $this->Admindb->monthly_discount_update($discount_ids, $client_account_id, $minimum_value, $maximum_value, $percentage);
-                } else {
-                    $success += $this->Admindb->monthly_discount_add($client_account_id, $minimum_value, $maximum_value, $percentage, $created_by, $valid_from, $valid_to);
-                }
-            }
-        }
-        echo json_encode(array("success" => $success));
-    }
-
-    public function delete_monthly_discount_details()
-    {
-        $request = $_REQUEST;
-        $success = 0;
-        if (!empty($request['client_account_id'])) {
-            $client_account_id = trim($request['client_account_id']);
-            $discount_ids = $request['selectedValues'];
-            $success = $this->Admindb->monthly_discount_delete($client_account_id, $discount_ids);
-        }
-        echo json_encode(array("success" => $success));
-    }
-
-    public function monthly_discount_ajax()
-    {
-        $data = [];
-        $data['edit']['client_account_id'] = $_REQUEST['clientAccountId'];
-        $this->view('v2/admin/customer/monthly_discount_ajax', $data);
-    }
-
-    public function save_subscription_details()
-    {
-        $request = $_REQUEST;
-        $success = 0;
-        if (!empty($request['id'])) {
-            $client_account_id = trim($request['id']);
-            $subscription_content_ids_arr = !empty($request['subscription_content_id']) ? $request['subscription_content_id'] : '';
-            $created_by = $_SESSION['user']->user_id;
-            $subscription_total = !empty($request['subscription_total']) ? $request['subscription_total'] : 0;
-            foreach ($subscription_content_ids_arr as $key => $subscription_content_ids) {
-                $analysis_client_price_id = !empty($request['sub_analysis_id'][$key]) ? $request['sub_analysis_id'][$key] : '';
-                $subscription_id = !empty($request['subscription_ids'][$key]) ? $request['subscription_ids'][$key] : '';
-                $count = !empty($request['sub_count'][$key]) ? $request['sub_count'][$key] : 0;
-                if (!empty($subscription_content_ids)) {
-                    $success += $this->Admindb->subscription_update($subscription_content_ids, $subscription_id, $analysis_client_price_id, $client_account_id, $count, $subscription_total);
-                } else {
-                    $success += $this->Admindb->subscription_add($subscription_id, $analysis_client_price_id, $client_account_id, $count, $subscription_total, $created_by);
-                }
-            }
-        }
-        echo json_encode(array("success" => $success));
-    }
-
-    public function subscription_ajax()
-    {
-        $data = [];
-        $data['edit']['client_account_id'] = $_REQUEST['clientAccountId'];
-        $this->view('v2/admin/customer/subscription_ajax', $data);
-    }
-
-    public function delete_subscription_details()
-    {
-        $request = $_REQUEST;
-        $success = 0;
-        if (!empty($request['client_account_id'])) {
-            $client_account_id = trim($request['client_account_id']);
-            $subscription_content_ids = $request['selectedValues'];
-            $success = $this->Admindb->delete_subscription_details($client_account_id, $subscription_content_ids);
-        }
-        echo json_encode(array("success" => $success));
-    }
-
-    public function get_excel_analyses_old()
-    {
-        $excel_data = $this->Admindb->get_excel_analysis_data();
-
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-
-        // Set document properties
-        $spreadsheet->getProperties()->setCreator('Dicon')
-            ->setLastModifiedBy('Dicon')
-            ->setTitle('Office 2007 XLSX Test Document')
-            ->setSubject('Office 2007 XLSX Test Document')
-            ->setDescription('Test document for Office 2007 XLSX, generated using PHP classes.')
-            ->setKeywords('office 2007 openxml php')
-            ->setCategory('Test Result File');
-
-        $spreadsheet->setActiveSheetIndex(0)
-            ->setCellValue('A1', 'NAME')
-            ->setCellValue('B1', 'DESCRIPTION')
-            ->setCellValue('C1', 'CATEGORY')
-            ->setCellValue('D1', 'PRICE')
-            ->setCellValue('E1', 'DEFAULT TIME')
-            ->setCellValue('F1', 'STATUS')
-            ->setCellValue('G1', 'CREATED DATE');
-
-        $spreadsheet->getActiveSheet()
-            ->fromArray(
-                $excel_data, // The data to set
-                NULL, // Array values with this value will not be set
-                'A2'
-            );     // Top left coordinate of the worksheet range where
-        //    we want to set these values (default is A1)
-        // Rename worksheet
-        $spreadsheet->getActiveSheet()->setTitle('ANALYSES DATA');
-
-        // Set active sheet index to the first sheet, so Excel opens this as the first sheet
-        $spreadsheet->setActiveSheetIndex(0);
-
-        // Redirect output to a client’s web browser (Xls)
-        header('Content-Type: application/vnd.ms-excel');
-        header('Content-Disposition: attachment;filename="Analyses_Data.xls"');
-        header('Cache-Control: max-age=0');
-        // If you're serving to IE 9, then the following may be needed
-        header('Cache-Control: max-age=1');
-
-        // If you're serving to IE over SSL, then the following may be needed
-        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
-        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT'); // always modified
-        header('Cache-Control: cache, must-revalidate'); // HTTP/1.1
-        header('Pragma: public'); // HTTP/1.0
-
-        $writer = PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xls');
-        $writer->save('php://output');
-        exit;
-    }
-
-    public function save_maintenance_fee_details()
-    {
-        $request = $_REQUEST;
-        $success = 0;
-        if (!empty($request['id'])) {
-            $client_account_id = trim($request['id']);
-            $created_by = $_SESSION['user']->user_id;
-            $maintenance_fee_type = !empty($request['maintenance_fee_type']) ? $request['maintenance_fee_type'] : '';
-            $maintenance_fee_amount = !empty($request['maintenance_fee_amount']) ? $request['maintenance_fee_amount'] : 0;
-            $success = $this->Admindb->save_maintenance_fee_details($client_account_id, $maintenance_fee_type, $maintenance_fee_amount, $created_by);
-        }
-        echo json_encode(array("success" => $success));
-    }
-
-    public function maintenance_fee_ajax()
-    {
-        $data = [];
-        $data['edit']['client_account_id'] = $_REQUEST['clientAccountId'];
-        $this->view('v2/admin/customer/maintenance_fees_ajax', $data);
-    }
-
-    public function billing_summary_customer_ajax()
-    {
-        $data = [];
-        $data['user'] = $this->user;
-        $form_data = $_POST;
-        $ids = !empty($form_data['customers']) ? $form_data['customers'] : [];
-        $start_date = !empty($form_data['start_date']) ? $form_data['start_date'] : '';
-        $end_date = !empty($form_data['end_date']) ? $form_data['end_date'] : '';
-        $data['customers'] = $ids;
-        $data['start_date'] = $start_date;
-        $data['end_date'] = $end_date;
-        $data['wsheet'] = $this->Report->billing_summary_customer($start_date, $end_date, $ids);
-        $customers = $this->Report->get_customer_names();
-        $data['customers'] = $customers;
-        $this->view('v2/admin/billing/billing_summary_customer_ajax', $data);
-    }
-
-    public function billing_summary_detailed_ajax()
-    {
-        $data = [];
-        $data['user'] = $this->user;
-        $form_data = $_POST;
-        $ids = !empty($form_data['customers']) ? $form_data['customers'] : [];
-        $start_date = !empty($form_data['start_date']) ? $form_data['start_date'] : '';
-        $end_date = !empty($form_data['end_date']) ? $form_data['end_date'] : '';
-        $data['customers'] = $ids;
-        $data['start_date'] = $start_date;
-        $data['end_date'] = $end_date;
-        $data['wsheet'] = $this->Report->billing_summary_detailed($start_date, $end_date, $ids);
-        $customers = $this->Report->get_customer_names();
-        $data['customers'] = $customers;
-        $this->view('v2/admin/billing/billing_summary_detailed_ajax', $data);
-    }
-
-    public function get_study_time_report()
-    {
         $request = $_REQUEST;
         $col = array(
-            0 => 't1.created_at',
-            1 => 't4.user_name',
-            2 => 't1.patient_name',
-            3 => 't1.analyst_hours',
-            4 => 't1.expected_time',
-            5 => 't1.time_difference',
-            6 => 't5.user_name',
-            7 => 't6.status'
-        );
+            0 => 'received Date',
+            1 => 'accession',
+            2 => 'Patient Name',
+            3 => 'mrn',
+            4 => 'tat',
+            5 => 'analyst_id'
+        );  //create column like table in database
 
-        list($totalData, $rows) = $this->Report->study_time_report($col, $request);
 
-        $data = [];
 
-        foreach ($rows as $row) {
-            $subdata = [];
-            $newDate = '';
 
-            if (!empty($row['created_at'])) {
-                $newDate = date("m-d-Y h:i:s A", strtotime($row['created_at']));
-            }
+        $selectedDays = $_POST['selectedDays'] ?? '';
+        $assignee = $_POST['assignee'] ?? '';
+        $secondAssignee = $_POST['secondAssignee'] ?? '';
+        $status = $_POST['status'] ?? '';
 
-            $subdata[] = $newDate;
-            $subdata[] = !empty($row['user_name']) ? $row['user_name'] : '';
-            $subdata[] = !empty($row['patient_name']) ? $row['patient_name'] : '';
-            $analyst_hours = !empty($row['analyst_hours']) ? $row['analyst_hours'] : '';
-            $expected_time = !empty($row['expected_time']) ? $row['expected_time'] : '';
-            $time_difference = !empty($row['time_difference']) ? $row['time_difference'] : '';
+        // $request['search']['value']);
 
-            if ($analyst_hours > 0 && $expected_time > 0) {
-                if ($analyst_hours > $expected_time) {
-                    $analyst_hours = '<span>' . $analyst_hours . ' <i class="fa fa-arrow-up style-red" ></i></span>';
-                    $expected_time = '<span>' . $expected_time . '</span>';
-                } else if ($analyst_hours < $expected_time) {
-                    $analyst_hours = '<span>' . $analyst_hours . ' <i class="fa fa-arrow-down style-green" ></i></span>';
-                    $expected_time = '<span>' . $expected_time . '</span>';
-                }
-            }
 
-            if ($time_difference > 0) {
-                $time_difference = '<span>' . $time_difference . ' <i class="fa fa-arrow-down style-green" ></i></span>';
-            } else if ($time_difference < 0) {
-                $time_difference = '<span>' . $time_difference . ' <i class="fa fa-arrow-down style-green" ></i></span>';
+
+        $sql = "SELECT studies.studies_id,studies.client_account_ids,studies.accession,  studies.mrn, studies.patient_name, studies.client_site_name, studies.analyst_id,studies.second_analyst_id ,  studies.dicom_webhook_ids, studies.status_ids , studies.created_at,  studies.completed_time,studies.actual_tat,studies.client_account_ids,studies.client_site_name ,analyses_performed.analysis_performed_id ,analyses_performed.studies_ids FROM studies JOIN analyses_performed on studies.studies_id = analyses_performed.studies_ids WHERE 1=1";
+
+        //Order
+        // $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
+        // $request['start'] . "  ," . $request['length'] . "  ";
+
+        if (!empty($selectedDays)) {
+            $sql .= " AND TIMESTAMPDIFF(DAY,studies.created_at,NOW()) < '" . $selectedDays . "' ";
+        }
+
+        if (!empty($assignee)) {
+            $sql .= " AND  studies.analyst_id = '" . $assignee . "' ";
+        }
+
+        if (!empty($secondAssignee)) {
+            $sql .= " AND studies.second_analyst_id = '" . $secondAssignee . "' ";
+        }
+
+        if (!empty($status)) {
+            $sql .= " AND  studies.status_ids = '" . $status . "' ";
+        }
+
+
+
+
+        if (!empty($request['search']['value'])) {
+
+            $sql .= " AND (studies.accession LIKE '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR studies.mrn Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR studies.patient_name Like '%" . $request['search']['value'] . "%' ";
+            $sql .= " OR studies.client_site_name Like '%" . $request['search']['value'] . "%' )";
+        }
+
+
+
+
+        $query = mysqli_query($con, $sql);
+        $totalData = mysqli_num_rows($query);
+        $totalFilter = $totalData;
+
+        $sql .= " ORDER BY studies.studies_id " . $request['order'][0]['dir'] . "  LIMIT " .
+                $request['start'] . "  ," . $request['length'] . "  ";
+
+        $query = mysqli_query($con, $sql);
+
+        $data = array();
+
+        while ($row = mysqli_fetch_array($query)) {
+            $subdata = array();
+            // $usergroup = $this->user_group_name($row[5]);
+
+            $originalDate = $row[10];
+            $newDate = date("m-d-Y", strtotime($originalDate));
+            $newTime = date("h:i", strtotime($originalDate));
+            if (!empty($originalDate)) {
+                $subdata[] = $newDate;
+                $subdata[] = $newTime;
             } else {
-                $time_difference = '<span>' . $time_difference . '</span>';
+                $subdata[] = $row[10];
+                $subdata[] = $row[10];
             }
+            $subdata[] = $row[2];
 
-            $subdata[] = $analyst_hours;
-            $subdata[] = $expected_time;
-            $subdata[] = $time_difference;
+            // $subdata[] = $row[6];   First analyst id
+            $first_ananlyst_name = $this->Admindb->get_user_by_id($row[6]);
+            $subdata[] = $first_ananlyst_name;
+            //  $subdata[] = $row[7];  Second analyst name
+            $second_ananlyst_name = $this->Admindb->get_user_by_id($row[7]);
+            $subdata[] = $second_ananlyst_name;
+            $client_details = $this->Admindb->get_client_details_by_id($row[13]);
+            //$subdata[] = $row[13];  client table id
+            $subdata[] = $client_details['client_name'];
+            $subdata[] = $client_details['client_number'];
+            //$subdata[] = $row[14]; 
+            $site_code = $this->Admindb->get_user_sitecode($row[13]);
+            $subdata[] = $site_code;
 
-            $subdata[] = !empty($row['assignee_name']) ? $row['assignee_name'] : '';
-            $status = !empty($row['status']) ? $row['status'] : '';
+            $analysis_details = $this->Admindb->get_analysis_details_by_id($row[15]);
 
-            if (strtolower($status) == strtolower('Completed')) {
-                $subdata[] = '<span class="btn btn-xs btn-success">' . $status . '</span>';
-            } else if (strtolower($status) == strtolower('In progress')) {
-                $subdata[] = '<span class="btn btn-xs btn-info">' . $status . '</span>';
-            } else if (strtolower($status) == strtolower('Under review')) {
-                $subdata[] = '<span class="btn btn-xs btn-warning">' . $status . '</span>';
-            } else if (strtolower($status) == strtolower('Cancelled')) {
-                $subdata[] = '<span class="btn btn-xs btn-danger">' . $status . '</span>';
-            } else if (strtolower($status) == strtolower('On hold')) {
-                $subdata[] = '<span class="btn btn-xs btn-warning">' . $status . '</span>';
+            $subdata[] = $analysis_details['analysis_name'];
+            $subdata[] = $analysis_details['analysis_code'];
+            $item_number = $analysis_details['analysis_id'];
+            $analysis_number = $this->Admindb->get_analysis_number_by_id($item_number);
+
+            $subdata[] = $analysis_number;
+            $status = $row[9];
+            if (!empty($status)) {
+                $study_status = $this->Admindb->get_status_details($status);
             } else {
-                $subdata[] = $status;
+                $study_status = "NOT STARTED";
+            }
+            $subdata[] = $study_status;
+
+            $completeDate = $row[11];
+            $newDate_completed = date("m-d-Y", strtotime($completeDate));
+            $newTime_completed = date("h:i", strtotime($completeDate));
+            if (!empty($completeDate)) {
+                $subdata[] = $newDate_completed;
+                $subdata[] = $newTime_completed;
+            } else {
+                $subdata[] = $row[11];
+                $subdata[] = $row[11];
             }
 
             $data[] = $subdata;
@@ -7092,7 +5412,7 @@ Assigned')) . '">Not Assigned</span>';
         $json_data = array(
             "draw" => intval($request['draw']),
             "recordsTotal" => intval($totalData),
-            "recordsFiltered" => intval($totalData),
+            "recordsFiltered" => intval($totalFilter),
             "data" => $data
         );
 
@@ -7100,382 +5420,586 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
-    public function study_time_report_excel1()
-    {
+    public function get_studies_info() {
+
+
+        echo "hello";
+
+        die();
+        $con = $this->getConnection();
         $request = $_REQUEST;
-        $col = [];
+        $col = array(
+            0 => 'studies.created_at',
+            1 => 'studies.accession',
+            2 => 'studies.patient_name',
+            3 => 'studies.mrn',
+            4 => 't2.contract_tat_minutes',
+            5 => 'dicom_webhook_details.webhook_customer',
+            6 => 't5.user_name',
+            7 => 't7.user_name',
+            8 => 't3.client_name',
+            9 => 'studies.client_site_name',
+            10 => 'dicom_webhook_details.webhook_description',
+            11 => 't6.status',
+            12 => 'studies.studies_id'
+        );  //create column like table in database
 
-        list($totalData, $excel_data) = $this->Report->study_time_report($col, $request);
+        $second_check = $_POST['second_check'] ?? '';
+        $selectedDays = $_POST['selectedDays'] ?? '';
+        $assignee = $_POST['assignee'] ?? '';
+        $secondAssignee = $_POST['secondAssignee'] ?? '';
+        $status = $_POST['status'] ?? '';
 
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+        $search_str = trim($request['search']['value']);
 
-        // Set document properties
-        $spreadsheet->getProperties()
-            ->setCreator('Dicon')
-            ->setLastModifiedBy('Dicon')
-            ->setTitle('Excel Study Time Report')
-            ->setSubject('Excel Study Time Report')
-            ->setDescription('Generated Excel report using PhpSpreadsheet.')
-            ->setKeywords('Excel report PhpSpreadsheet')
-            ->setCategory('Report');
+        $sql = "SELECT studies.studies_id, studies.accession, studies.mrn, studies.patient_name, studies.analyst_id, studies.second_analyst_id, studies.dicom_webhook_ids, studies.status_ids, studies.created_at, studies.actual_tat, studies.client_account_ids, dicom_webhook_details.dicom_webhook_id, dicom_webhook_details.webhook_customer, dicom_webhook_details.webhook_description, studies.client_site_name, t4.user_name, t5.user_name AS assignee_name, t6.status, t7.user_name AS second_checker, t3.client_name, t2.contract_tat, t2.contract_tat_unit, t2.contract_tat_minutes FROM studies "
+                . "LEFT JOIN dicom_webhook_details ON (studies.dicom_webhook_ids = dicom_webhook_details.dicom_webhook_id)";
+        $sql .= " LEFT JOIN client_details t2 ON (studies.client_account_ids = t2.client_account_id)"
+                . " LEFT JOIN clients t3 ON (t2.client_ids = t3.client_id)"
+                . " LEFT JOIN users t4 ON (t2.user_ids = t4.user_id)"
+                . " LEFT JOIN users t5 ON (studies.analyst_id = t5.user_id)"
+                . " LEFT JOIN analysis_status t6 ON (studies.status_ids = t6.status_id)"
+                . " LEFT JOIN users t7 ON (studies.second_analyst_id = t7.user_id)";
 
-        // Define headers
-        $headers = ['SL No', 'Date', 'Customer', 'Patient', 'AT [Minutes]', 'EAT [Minutes]', 'Time Difference', 'Assignee', 'Status'];
+        $sql .= " WHERE 1=1";
 
-        $sheet->fromArray([$headers], NULL, 'A1');
+        if (!empty($selectedDays)) {
+            $sql .= " AND TIMESTAMPDIFF(DAY, studies.created_at,NOW()) < '" . $selectedDays . "' ";
+        }
 
-        // Determine the last column dynamically
-        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-        $headerRange = 'A1:' . $lastColumn . '1';
+        if (!empty($assignee)) {
+            $sql .= " AND studies.analyst_id = '" . $assignee . "' ";
+        }
 
-        // Apply full header styling
-        $styleArray = [
-            'font' => ['bold' => true],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FFFFE0B2'], // Light Orange Background
-            ],
-        ];
-
-        // Apply styling
-        $sheet->getStyle($headerRange)->applyFromArray($styleArray);
-
-        if ($totalData > 0) {
-            // Insert data using a loop
-            $rowNumber = 2; // Start from row 2 since row 1 has headers
-            foreach ($excel_data as $k => $row) {
-                $newDate = '';
-                if (!empty($row['created_at'])) {
-                    $newDate = date("m-d-Y h:i:s A", strtotime($row['created_at']));
+        if (!empty($second_check)) {
+            if ($second_check == 1) {
+                $sql .= " AND studies.second_analyst_id !='' ";
+                if (!empty($secondAssignee)) {
+                    $sql .= " AND studies.second_analyst_id = '" . $secondAssignee . "' ";
                 }
-                $customer = !empty($row['user_name']) ? $row['user_name'] : '';
-                $patient_name = !empty($row['patient_name']) ? $row['patient_name'] : '';
-                $analyst_hours = !empty($row['analyst_hours']) ? $row['analyst_hours'] : '';
-                $expected_time = !empty($row['expected_time']) ? $row['expected_time'] : '';
-                $time_difference = !empty($row['time_difference']) ? $row['time_difference'] : '';
-                $assignee_name = !empty($row['assignee_name']) ? $row['assignee_name'] : '';
-                $status = !empty($row['status']) ? $row['status'] : '';
-                $sheet->setCellValue('A' . $rowNumber, $k + 1);
-                $sheet->setCellValue('B' . $rowNumber, $newDate);
-                $sheet->setCellValue('C' . $rowNumber, $customer);
-                $sheet->setCellValue('D' . $rowNumber, $patient_name);
-                $sheet->setCellValue('E' . $rowNumber, $analyst_hours);
-                $sheet->setCellValue('F' . $rowNumber, $expected_time);
-                $sheet->setCellValue('G' . $rowNumber, $time_difference);
-                $sheet->setCellValue('H' . $rowNumber, $assignee_name);
-                $sheet->setCellValue('I' . $rowNumber, $status);
-                $rowNumber++;
-            }
-        }
-        // Rename worksheet
-        $sheet->setTitle('STUDY TIME REPORT');
-
-        // Set headers for file download
-        header('Content-Type: application/vnd.ms-excel');
-        header('Content-Disposition: attachment;filename="study_time_report.xls"');
-        header('Cache-Control: max-age=0');
-        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
-        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
-        header('Cache-Control: cache, must-revalidate');
-        header('Pragma: public');
-
-        // Create writer and output file
-        $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xls');
-        $writer->save('php://output');
-        exit;
-    }
-
-    public function study_time_report_excel()
-    {
-        ini_set('memory_limit', '-1');
-
-        $request = $_REQUEST;
-        $col = [];
-
-        list($totalData, $excel_data) = $this->Report->study_time_report($col, $request);
-
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-
-        // Set document properties
-        $spreadsheet->getProperties()
-            ->setCreator('Dicon')
-            ->setLastModifiedBy('Dicon')
-            ->setTitle('Excel Study Time Report')
-            ->setSubject('Excel Study Time Report')
-            ->setDescription('Generated Excel report using PhpSpreadsheet.')
-            ->setKeywords('Excel report PhpSpreadsheet')
-            ->setCategory('Report');
-
-        // Define headers
-        $headers = ['SL No', 'Date', 'Customer', 'Patient', 'AT [Minutes]', 'EAT [Minutes]', 'Time Difference', 'Assignee', 'Status'];
-
-        // Insert headers
-        $sheet->fromArray([$headers], NULL, 'A1');
-
-        // Determine the last column dynamically
-        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-        $headerRange = 'A1:' . $lastColumn . '1';
-
-        // Apply header styling
-        $styleArray = [
-            'font' => ['bold' => true],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FFFFE0B2'], // Light Orange Background
-            ],
-        ];
-        $sheet->getStyle($headerRange)->applyFromArray($styleArray);
-
-        if ($totalData > 0) {
-            // Insert data using a loop
-            $rowNumber = 2; // Start from row 2 since row 1 has headers
-            foreach ($excel_data as $k => $row) {
-                $newDate = (!empty($row['created_at'])) ? date("m-d-Y h:i:s A", strtotime($row['created_at'])) : '';
-                $customer = !empty($row['user_name']) ? $row['user_name'] : '';
-                $patient_name = !empty($row['patient_name']) ? $row['patient_name'] : '';
-                $analyst_hours = !empty($row['analyst_hours']) ? $row['analyst_hours'] : '';
-                $expected_time = !empty($row['expected_time']) ? $row['expected_time'] : '';
-                $time_difference = !empty($row['time_difference']) ? $row['time_difference'] : '';
-                $assignee_name = !empty($row['assignee_name']) ? $row['assignee_name'] : '';
-                $status = !empty($row['status']) ? $row['status'] : '';
-
-                $sheet->setCellValueExplicit('A' . $rowNumber, $k + 1, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('B' . $rowNumber, $newDate, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('C' . $rowNumber, $customer, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('D' . $rowNumber, $patient_name, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('E' . $rowNumber, $analyst_hours, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-                $sheet->setCellValueExplicit('F' . $rowNumber, $expected_time, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-                $sheet->setCellValueExplicit('G' . $rowNumber, $time_difference, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-                $sheet->setCellValueExplicit('H' . $rowNumber, $assignee_name, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('I' . $rowNumber, $status, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-
-                $rowNumber++;
+            } else {
+                $sql .= " AND (studies.second_analyst_id ='' OR studies.second_analyst_id IS NULL)";
             }
         }
 
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $fl = 'temp/study_time_report.xlsx';
-        $writer->save($fl);
+        if (!empty($status)) {
+            $sql .= " AND studies.status_ids = '" . $status . "' ";
+        }
 
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="study_time_report.xlsx"');
-        header('Content-Length: ' . filesize($fl));
-        readfile($fl);
+        if (!empty($search_str)) {
+            $sql .= " AND (studies.accession LIKE '%" . $search_str . "%' ";
+            $sql .= " OR studies.mrn Like '%" . $search_str . "%' ";
+            $sql .= " OR studies.patient_name Like '%" . $search_str . "%' ";
+            $sql .= " OR dicom_webhook_details.webhook_customer Like '%" . $search_str . "%' ";
+            $sql .= " OR dicom_webhook_details.webhook_description Like '%" . $search_str . "%' ";
+            $sql .= " OR CONCAT(t2.contract_tat, ' ', t2.contract_tat_unit) LIKE '%" . $search_str . "%' ";
+            $sql .= " OR studies.client_site_name Like '%" . $search_str . "%' ";
+            $sql .= " OR t4.user_name Like '%" . $search_str . "%' ";
+            $sql .= " OR t5.user_name Like '%" . $search_str . "%' ";
+            $sql .= " OR t6.status Like '%" . $search_str . "%' ";
+            $sql .= " OR t7.user_name Like '%" . $search_str . "%' ";
+            $sql .= " OR t3.client_name Like '%" . $search_str . "%' )";
+        }
 
-        unlink($fl);
+        $query = mysqli_query($con, $sql);
+        $totalData = mysqli_num_rows($query);
+        $totalFilter = $totalData;
 
-        exit;
+//        $sql .= " ORDER BY studies.studies_id " . $request['order'][0]['dir'] . "  LIMIT " .
+//                $request['start'] . "  ," . $request['length'] . "  ";
+        //Order
+
+
+        $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
+                $request['start'] . "  ," . $request['length'] . "  ";
+
+        $query = mysqli_query($con, $sql);
+        
+        echo $query;
+        die();
+        $data = array();
+        $i = 0;
+        while ($row = mysqli_fetch_array($query)) {
+            $subdata = array();
+            // $usergroup = $this->user_group_name($row[5]);
+
+            $studies_id = $row['studies_id'];
+            $originalDate = $row['created_at'];
+            $newDate = date("m-d-Y h:i A", strtotime($originalDate));
+            //$newTime =date("h:i", strtotime($originalDate));
+            if (!empty($originalDate)) {
+                $subdata[] = $newDate;
+                // $subdata[] = $newTime;
+            } else {
+                $subdata[] = $row['created_at'];
+                // $subdata[] = $row[8];
+            }
+            $subdata[] = $row['accession'];
+
+            $subdata[] = $row['patient_name'];
+            $subdata[] = $row['mrn'];
+
+            $ctat = trim($row['contract_tat'] . ' ' . $row['contract_tat_unit']);
+            $actual_tat = $row['actual_tat'];
+            if(!empty($actual_tat))
+            { 
+                $sid = base64_encode($row['studies_id']);
+                $updatelink = '<a href='.SITE_URL.'/edit_tat?sid='.$sid.'>'.$actual_tat.' Hrs</a>';
+                $subdata[] = $updatelink;    
+            }
+            else
+            {
+            $subdata[] = $ctat;    
+            }
+
+            $subdata[] = $row['webhook_customer'];
+
+            //   $first_ananlyst_name = $this->Admindb->get_user_by_id($row['analyst_id']);
+            $assignee_name = !empty($row['assignee_name']) ? $row['assignee_name'] : '';
+            $subdata[] = $assignee_name;
+
+            //$second_ananlyst_name = $this->Admindb->get_user_by_id($row['second_analyst_id']);
+            $second_checker = !empty($row['second_checker']) ? $row['second_checker'] : '';
+            $subdata[] = $second_checker;
+
+            // $client_details = $this->Admindb->get_client_details_by_id($row['client_account_ids']);
+            $client_name = !empty($row['client_name']) ? $row['client_name'] : '';
+            $subdata[] = $client_name;
+
+            // site
+            $subdata[] = !empty($row['client_site_name']) ? $row['client_site_name'] : '';
+
+            $subdata[] = $row['webhook_description'];
+
+//            $status = $row['status_ids'];
+//            if (!empty($status)) {
+//                $study_status = $this->Admindb->get_status_details($status);                
+//            } else {
+//                $study_status = "NOT STARTED";
+//            }
+
+            $s_status = !empty($row['status']) ? $row['status'] : '';
+            //$study_status = !empty($s_status) ? $s_status : 'NOT STARTED';
+            $bgcolor = '';
+            if ($s_status == '') {
+                $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-danger status_chk" rel="' . str_replace(' ', '_', strtolower('Not Assigned')) . '">Not Assigned</span>';
+                $bgcolor = 'bg-danger';
+            } else if ($s_status == 'Completed') {
+                $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="' . str_replace(' ', '_', strtolower($s_status)) . '">Completed</span>';
+                $bgcolor = 'bg-success';
+            } else if ($s_status == 'In progress') {
+                $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" rel="' . str_replace(' ', '_', strtolower($s_status)) . '">In Progress</span>';
+                $bgcolor = 'bg-info';
+            } else if ($s_status == 'Under review') {
+                $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($s_status)) . '">Under Review</span>';
+                $bgcolor = 'bg-warning';
+            } else if ($s_status == 'Cancelled' || $s_status == 'CancelledAcc' || $s_status == 'CancelledCust') {
+                $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="' . str_replace(' ', '_', strtolower($s_status)) . '">Cancelled</span>';
+                $bgcolor = 'bg-default';
+            } else if ($s_status == 'On hold') {
+                $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="' . str_replace(' ', '_', strtolower($s_status)) . '">On Hold</span>';
+                $bgcolor = 'bg-warning';
+            } else {
+                $study_status = ucwords($s_status);
+            }
+
+            $subdata[] = $study_status;
+          $stid = base64_encode($row['studies_id']);
+            if ($s_status == '') {
+                $actData = '<a href="' . SITE_URL . '/dashboard/open_work_sheets?view=' . $studies_id . '" class="btn btn-success btn-xs" >Assign</a>';
+            } else if ($s_status == 'Completed') {
+                $actData = '<a href="' . SITE_URL . '/view_details?sid=' . $stid . '" class="btn btn-primary btn-xs">View</a><a  class="btn btn-warning btn-xs" style="display:none;" onclick="getreview(' . $stid . ')";>Review</a>';
+            } else {
+                $actData = '<a href="' . SITE_URL . '/view_details?sid=' . $stid . '" class="btn btn-primary btn-xs">View</a><a  class="btn btn-warning btn-xs" style="display:none;" onclick="getreview(' . $studies_id . ')";>Review</a>';
+            }
+            $actData .= '<script>$("#status_val_' . $i . '").closest("tr").addClass("' . $bgcolor . '"); $("#status_val_' . $i . '").closest("td").attr("display","none");</script>';   
+
+           
+
+             
+
+           // $actData = '<a href="' . SITE_URL . '/view_details?sid=' . $stid . '" class="btn btn-primary btn-xs">View</a>';
+
+            $subdata[] = $actData;
+
+            $data[] = $subdata;
+            $i++;
+        }
+
+        $json_data = array(
+            "draw" => intval($request['draw']),
+            "recordsTotal" => intval($totalData),
+            "recordsFiltered" => intval($totalFilter),
+            "data" => $data
+        );
+
+        echo json_encode($json_data);
+        die;
     }
 
-    public function users_excel()
+    public function stat_report_csv() {
+        $con = $this->getConnection();
+
+        $selectedDays = $_REQUEST['days'];
+        $assignee = $_REQUEST['assignee'];
+        $secondAssignee = $_REQUEST['second_assignee'];
+        $status = $_REQUEST['status'];
+
+        $sql = "SELECT studies.studies_id,studies.client_account_ids,studies.accession,  studies.mrn, studies.patient_name, studies.client_site_name, studies.analyst_id,studies.second_analyst_id ,  studies.dicom_webhook_ids, studies.status_ids , studies.created_at,  studies.completed_time,studies.actual_tat,studies.client_account_ids,studies.client_site_name ,analyses_performed.analysis_performed_id ,analyses_performed.studies_ids FROM studies JOIN analyses_performed on studies.studies_id = analyses_performed.studies_ids WHERE 1=1";
+
+        //Order
+        // $sql .= " ORDER BY " . $col[$request['order'][0]['column']] . "   " . $request['order'][0]['dir'] . "  LIMIT " .
+        // $request['start'] . "  ," . $request['length'] . "  ";
+
+        if (!empty($selectedDays)) {
+            $sql .= " AND TIMESTAMPDIFF(DAY,studies.created_at,NOW()) < '" . $selectedDays . "' ";
+        }
+
+        if (!empty($assignee)) {
+            $sql .= " AND  studies.analyst_id = '" . $assignee . "' ";
+        }
+
+        if (!empty($secondAssignee)) {
+            $sql .= " AND studies.second_analyst_id = '" . $secondAssignee . "' ";
+        }
+
+        if (!empty($status)) {
+            $sql .= " AND  studies.status_ids = '" . $status . "' ";
+        }
+
+
+
+
+        $sql .= " ORDER BY studies.studies_id desc";
+
+        $query = mysqli_query($con, $sql);
+
+        $data = array();
+
+        $columnHeader = "SL No" . "\t" . "Received Date" . "\t" . "Received Time" . "\t" . "Accession" . "\t" . "Assignee" . "\t" . "Second Check" . "\t" . "Client Name" . "\t" . "Client Number" . "\t" . "Site Code" . "\t" . "Analysis Perfomed" . "\t" . "Pia Analysis Code" . "\t" . "Item Numbers" . "\t" . "Status" . "\t" . "Completed Date" . "\t" . "Completed Time" . "\t";
+
+        $setData = '';
+        $i = 0;
+        $user_arr = array();
+        $user_arr[] = array("SL No", "Received Date", "Received Time", "Accession", "Assignee", "Second Check", "Client Name", "Client Number", "Site Code", "Analysis Perfomed", "Pia Analysis Code", "Item Numbers", "Status", "Completed Date", "Completed Time");
+        while ($row = mysqli_fetch_array($query)) {
+            $i++;
+
+            $originalDate = $row[10];
+            $newDate = date("m-d-Y", strtotime($originalDate));
+            $newTime = date("h:i", strtotime($originalDate));
+            if (!empty($originalDate)) {
+                $newDate1 = $newDate;
+                $newTime1 = $newTime;
+            } else {
+
+                $newDate1 = "";
+                $newTime1 = "";
+            }
+
+            $first_ananlyst_name = $this->Admindb->get_user_by_id($row[6]);
+            $second_ananlyst_name = $this->Admindb->get_user_by_id($row[7]);
+            $client_details = $this->Admindb->get_client_details_by_id($row[13]);
+            $client_name = $client_details['client_name'];
+            $client_number = $client_details['client_number'];
+            $site_code = $this->Admindb->get_user_sitecode($row[13]);
+            $analysis_details = $this->Admindb->get_analysis_details_by_id($row[15]);
+
+            $analysis_name = $analysis_details['analysis_name'];
+            $analysis_code = $analysis_details['analysis_code'];
+            $item_number = $analysis_details['analysis_id'];
+            $analysis_number = $this->Admindb->get_analysis_number_by_id($item_number);
+            $status = $row[9];
+            if (!empty($status)) {
+                $study_status = $this->Admindb->get_status_details($status);
+            } else {
+                $study_status = "NOT STARTED";
+            }
+
+
+
+            $completeDate = $row[11];
+            $newDate_completed = date("m-d-Y", strtotime($completeDate));
+            $newTime_completed = date("h:i", strtotime($completeDate));
+            if (!empty($completeDate)) {
+                $newDate_completed1 = $newDate_completed;
+                $newTime_completed1 = $newTime_completed;
+            } else {
+
+                $newDate_completed1 = "";
+                $newTime_completed1 = "";
+            }
+            $user_arr[] = array($i, $newDate1, $newTime1, $row[2], $first_ananlyst_name, $second_ananlyst_name, $client_name, $client_number, $site_code, $analysis_name, $analysis_code, $analysis_number, $study_status, $newDate_completed1, $newTime_completed1);
+        }
+
+        // print_r($user_arr);
+        $filename = '/tmp/Stat_Report.csv';
+        $file = fopen($filename, "w");
+
+        foreach ($user_arr as $line) {
+            fputcsv($file, $line);
+        }
+        fclose($file);
+
+// download
+        header("Content-Description: File Transfer");
+        header("Content-Disposition: attachment; filename=" . basename($filename));
+        header("Content-Type: application/csv; ");
+        readfile($filename);
+
+// deleting file
+        unlink($filename);
+        exit();
+    }
+
+    public function update_tat_value() {
+        $form_data = $_POST;
+        $success = 0;
+
+        $status = $this->Extradb->edit_tat_details($form_data['tat'],$form_data['id']);
+         if ($status['type'] == 'success') {
+         $success = 1;
+          $msg = !empty($status['msg']) ? $status['msg'] : '';
+         }        
+         else {
+         $msg = 'Please Check.';
+         }
+         echo json_encode(array("success" => $success, "msg" => $msg));
+    }
+
+
+
+  
+
+
+
+
+    public function export_allstudies_info_excel()
     {
+
         ini_set('memory_limit', '-1');
-        list($totalData, $excel_data) = $this->Report->users_excel_report();
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        // Set document properties
-        $spreadsheet->getProperties()
-            ->setCreator('Dicon')
-            ->setLastModifiedBy('Dicon')
-            ->setTitle('Excel Users Report')
-            ->setSubject('Excel Users Report')
-            ->setDescription('Generated Excel report using PhpSpreadsheet.')
-            ->setKeywords('Excel report PhpSpreadsheet')
-            ->setCategory('Report');
-        // Define headers
-        $headers = ['SL No', 'Name', 'Email', 'User Type', 'Status', 'Created Date'];
-        // Insert headers
-        $sheet->fromArray([$headers], NULL, 'A1');
-        // Determine the last column dynamically
-        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-        $headerRange = 'A1:' . $lastColumn . '1';
-        // Apply header styling
-        $styleArray = [
-            'font' => ['bold' => true],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FFFFE0B2'], // Light Orange Background
-            ],
-        ];
-        $sheet->getStyle($headerRange)->applyFromArray($styleArray);
-        if ($totalData > 0) {
-            // Insert data using a loop
-            $rowNumber = 2; // Start from row 2 since row 1 has headers
-            foreach ($excel_data as $k => $row) {
-                //  $newDate = (!empty($row['created_at'])) ? date("m-d-Y h:i:s A", strtotime($row['created_at'])) : '';
-                $newDate = (!empty($row['created_at'])) ? date("m-d-Y", strtotime($row['created_at'])) : '';
-                $name = !empty($row['user_name']) ? $row['user_name'] : '';
-                $email = !empty($row['email']) ? $row['email'] : '';
-                $user_type = !empty($row['user_type']) ? $row['user_type'] : '';
-                if ($row['is_active'] == 1) {
-                    $status = 'Active';
-                } else if ($row['is_active'] == 2) {
-                    $status = 'Dormant';
-                } else {
-                    $status = 'Inactive';
+        ini_set('max_execution_time', '0');
+
+
+        $second_check = $_POST['second_check'] ?? '';
+        $selectedDays = $_POST['days'] ?? '';
+        $assignee = $_POST['assignee'] ?? '';
+        $secondAssignee = $_POST['second_assignee'] ?? '';
+        $status = $_POST['status'] ?? '';
+
+
+
+
+        if (!isset($_SESSION['user']->user_id)) {
+            header('Content-Type: application/json');
+            echo json_encode(["error" => "Unauthorized access"]);
+            exit;
+        }
+
+        $con = $this->getConnection();
+        $search_str = trim($_POST['searchValue'] ?? '');
+
+         $sql = "SELECT studies.studies_id, studies.accession, studies.mrn, studies.patient_name, studies.analyst_id, studies.second_analyst_id, studies.dicom_webhook_ids, studies.status_ids, studies.created_at, studies.actual_tat, studies.client_account_ids, dicom_webhook_details.dicom_webhook_id, dicom_webhook_details.webhook_customer, dicom_webhook_details.webhook_description, studies.client_site_name, t4.user_name, t5.user_name AS assignee_name, t6.status, t7.user_name AS second_checker, t3.client_name, t2.contract_tat, t2.contract_tat_unit, t2.contract_tat_minutes FROM studies "
+                . "LEFT JOIN dicom_webhook_details ON (studies.dicom_webhook_ids = dicom_webhook_details.dicom_webhook_id)";
+        $sql .= " LEFT JOIN client_details t2 ON (studies.client_account_ids = t2.client_account_id)"
+                . " LEFT JOIN clients t3 ON (t2.client_ids = t3.client_id)"
+                . " LEFT JOIN users t4 ON (t2.user_ids = t4.user_id)"
+                . " LEFT JOIN users t5 ON (studies.analyst_id = t5.user_id)"
+                . " LEFT JOIN analysis_status t6 ON (studies.status_ids = t6.status_id)"
+                . " LEFT JOIN users t7 ON (studies.second_analyst_id = t7.user_id)";
+
+        $sql .= " WHERE 1=1";
+
+       
+
+         if (!empty($selectedDays)) {
+            $sql .= " AND TIMESTAMPDIFF(DAY, studies.created_at,NOW()) < '" . $selectedDays . "' ";
+        }
+
+        if (!empty($assignee)) {
+            $sql .= " AND studies.analyst_id = '" . $assignee . "' ";
+        }
+
+        if (!empty($second_check)) {
+            if ($second_check == 1) {
+                $sql .= " AND studies.second_analyst_id !='' ";
+                if (!empty($secondAssignee)) {
+                    $sql .= " AND studies.second_analyst_id = '" . $secondAssignee . "' ";
                 }
-                $sheet->setCellValueExplicit('A' . $rowNumber, $k + 1, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('B' . $rowNumber, $name, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('C' . $rowNumber, $email, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('D' . $rowNumber, $user_type, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('E' . $rowNumber, $status, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('F' . $rowNumber, $newDate, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $rowNumber++;
+            } else {
+                $sql .= " AND (studies.second_analyst_id ='' OR studies.second_analyst_id IS NULL)";
             }
         }
 
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $fl = 'temp/users_list.xlsx';
-        $writer->save($fl);
+        if (!empty($status)) {
+            $sql .= " AND studies.status_ids = '" . $status . "' ";
+        }
 
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="users_list.xlsx"');
-        header('Content-Length: ' . filesize($fl));
-        readfile($fl);
 
-        unlink($fl);
+        
+        $sql .= " ORDER BY studies.studies_id DESC";
+        $query = mysqli_query($con, $sql);
 
-        exit;
-    }
+        if (!$query) {
+            echo json_encode(["error" => "Database error: " . mysqli_error($con)]);
+            exit;
+        }
 
-    public function client_excel()
-    {
-        ini_set('memory_limit', '-1');
-        list($totalData, $excel_data) = $this->Report->get_customer_excel_data();
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        // Set document properties
         $spreadsheet->getProperties()
             ->setCreator('Dicon')
             ->setLastModifiedBy('Dicon')
-            ->setTitle('Excel Client Report')
-            ->setSubject('Excel Client Report')
-            ->setDescription('Generated Excel report using PhpSpreadsheet.')
-            ->setKeywords('Excel report PhpSpreadsheet')
-            ->setCategory('Report');
-        // Define headers
-        $headers = ['SL No', 'Name', 'Email', 'Status', 'Created Date'];
-        // Insert headers
-        $sheet->fromArray([$headers], NULL, 'A1');
-        // Determine the last column dynamically
+            ->setTitle('All Studies')
+            ->setDescription('Exported user info using PhpSpreadsheet.');
+
+        $headers = ["SL No", "Received Date", "Accession", "Patient Name", "MRN", "Default TAT","Webhook Customer","Assignee","Second Check","Customer","Site","Description","Status"];
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-        $headerRange = 'A1:' . $lastColumn . '1';
-        // Apply header styling
-        $styleArray = [
-            'font' => ['bold' => true],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
+        $mergeRange = "A2:{$lastColumn}2";
+
+        $sheet->mergeCells($mergeRange);
+        $sheet->setCellValue('A2', 'All Studies');
+        $sheet->getStyle('A2')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 17],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FFFFE0B2'], // Light Orange Background
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFB0E0E6'],
             ],
-        ];
-        $sheet->getStyle($headerRange)->applyFromArray($styleArray);
-        if ($totalData > 0) {
-            // Insert data using a loop
-            $rowNumber = 2; // Start from row 2 since row 1 has headers
-            foreach ($excel_data as $k => $row) {
-                $newDate = (!empty($row['created_at'])) ? date("m-d-Y", strtotime($row['created_at'])) : '';
-                $name = !empty($row['user_name']) ? $row['user_name'] : '';
-                $email = !empty($row['email']) ? $row['email'] : '';
-                if ($row['is_active'] == 1) {
-                    $status = 'Active';
-                } else if ($row['is_active'] == 2) {
-                    $status = 'Dormant';
-                } else {
-                    $status = 'Inactive';
-                }
-                $sheet->setCellValueExplicit('A' . $rowNumber, $k + 1, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('B' . $rowNumber, $name, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('C' . $rowNumber, $email, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('D' . $rowNumber, $status, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('E' . $rowNumber, $newDate, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $rowNumber++;
+        ]);
+
+        $sheet->fromArray([$headers], NULL, 'A3');
+        $sheet->getStyle("A3:{$lastColumn}3")->applyFromArray([
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFADD8E6'],
+            ],
+        ]);
+
+        foreach (range('A', $lastColumn) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $rowNumber = 4;
+        $sl = 1;
+        while ($row = mysqli_fetch_assoc($query)) {
+            
+
+
+
+
+          // $usergroup = $this->user_group_name($row[5]);
+
+            $studies_id = $row['studies_id'];
+            $originalDate = $row['created_at'];
+            $newDate = date("m-d-Y h:i A", strtotime($originalDate));
+            //$newTime =date("h:i", strtotime($originalDate));
+            if (!empty($originalDate)) {
+                $rd = $newDate;
+                // $subdata[] = $newTime;
+            } else {
+                $rd = $row['created_at'];
+                // $subdata[] = $row[8];
             }
+           
+
+           
+            
+
+            $ctat = trim($row['contract_tat'] . ' ' . $row['contract_tat_unit']);
+            $actual_tat = $row['actual_tat'];
+            if(!empty($actual_tat))
+            { 
+                
+                $tatvalues = $actual_tat;
+                
+            }
+            else
+            {
+            $tatvalues  = $ctat;    
+            }
+
+           $assignee_name = !empty($row['assignee_name']) ? $row['assignee_name'] : '';  
+           $second_checker = !empty($row['second_checker']) ? $row['second_checker'] : '';
+           $client_name = !empty($row['client_name']) ? $row['client_name'] : '';
+
+            //   $first_ananlyst_name = $this->Admindb->get_user_by_id($row['analyst_id']);
+            
+            
+
+            //$second_ananlyst_name = $this->Admindb->get_user_by_id($row['second_analyst_id']);
+            
+
+            
+
+            // site
+            $site = !empty($row['client_site_name']) ? $row['client_site_name'] : '';
+
+            $s_status = !empty($row['status']) ? $row['status'] : '';
+
+//            $status = $row['status_ids'];
+//            if (!empty($status)) {
+//                $study_status = $this->Admindb->get_status_details($status);                
+//            } else {
+//                $study_status = "NOT STARTED";
+//            }
+
+            $s_status = !empty($row['status']) ? $row['status'] : '';
+            $dataRow = [
+                $sl++,
+                $rd,
+               $row['accession'],
+                $row['patient_name'],
+                $row['mrn'],
+                $tatvalues,
+                 $row['webhook_customer'],
+                $assignee_name,
+                $second_checker,
+                $client_name,
+                $site,
+                $row['webhook_description'],
+                $s_status
+
+            ];
+
+            $sheet->fromArray([$dataRow], NULL, 'A' . $rowNumber++);
+        }
+
+        $dataStartRow = 4;
+        $dataEndRow = $rowNumber - 1;
+
+        $sheet->getStyle("A{$dataStartRow}:A{$dataEndRow}")
+            ->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+        for ($col = 2; $col <= count($headers); $col++) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+            $sheet->getStyle("{$colLetter}{$dataStartRow}:{$colLetter}{$dataEndRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_LEFT);
         }
 
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $fl = 'temp/clients_list.xlsx';
-        $writer->save($fl);
+        //  $filePath = '/tmp/user_info.xlsx';
+      //  $filePath = dirname(__DIR__) . '/tmp/user_info.xlsx';
+        $filePath = dirname(__DIR__) . '/tmp/all_studies.xlsx';
+        $writer->save($filePath);
 
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="clients_list.xlsx"');
-        header('Content-Length: ' . filesize($fl));
-        readfile($fl);
-
-        unlink($fl);
-
-        exit;
-    }
-
-    public function get_excel_analyses()
-    {
-        ini_set('memory_limit', '-1');
-        list($totalData, $excel_data) = $this->Report->get_excel_analysis_data();
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        // Set document properties
-        $spreadsheet->getProperties()
-            ->setCreator('Dicon')
-            ->setLastModifiedBy('Dicon')
-            ->setTitle('Excel Analyses Report')
-            ->setSubject('Excel Analyses Report')
-            ->setDescription('Generated Excel report using PhpSpreadsheet.')
-            ->setKeywords('Excel report PhpSpreadsheet')
-            ->setCategory('Report');
-
-        $headers = ['SL No', 'Name', 'Description', 'Category', 'Item Number', 'Price', 'Default Time (Min)'];
-
-        $sheet->fromArray([$headers], NULL, 'A1');
-
-        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-        $headerRange = 'A1:' . $lastColumn . '1';
-
-        $styleArray = [
-            'font' => ['bold' => true],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FFFFE0B2'], // Light Orange Background
-            ],
-        ];
-        $sheet->getStyle($headerRange)->applyFromArray($styleArray);
-        if ($totalData > 0) {
-            $rowNumber = 2;
-            foreach ($excel_data as $k => $row) {
-                $analysis_name = !empty($row['analysis_name']) ? $row['analysis_name'] : '';
-                $analysis_invoicing_description = !empty($row['analysis_invoicing_description']) ? $row['analysis_invoicing_description'] : '';
-                $category_name = !empty($row['category_name']) ? $row['category_name'] : '';
-                $analysis_number = !empty($row['analysis_number']) ? $row['analysis_number'] : '';
-                $analysis_price = !empty($row['analysis_price']) ? $row['analysis_price'] : '';
-                $time_to_analyze = !empty($row['analysis_name']) ? $row['time_to_analyze'] : '';
-
-                $sheet->setCellValueExplicit('A' . $rowNumber, $k + 1, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('B' . $rowNumber, $analysis_name, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('C' . $rowNumber, $analysis_invoicing_description, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('D' . $rowNumber, $category_name, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('E' . $rowNumber, $analysis_number, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('F' . $rowNumber, $analysis_price, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('G' . $rowNumber, $time_to_analyze, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                $rowNumber++;
-            }
+        if (!file_exists($filePath)) {
+            die("Error: File not created.");
         }
 
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $fl = 'temp/analyses_list.xlsx';
-        $writer->save($fl);
-
+        ob_end_clean();
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="analyses_list.xlsx"');
-        header('Content-Length: ' . filesize($fl));
-        readfile($fl);
-
-        unlink($fl);
-
+        header('Content-Disposition: attachment; filename="all_studies.xlsx"');
+        header('Content-Length: ' . filesize($filePath));
+        readfile($filePath);
+        unlink($filePath);
         exit;
     }
+
+
+    
 }

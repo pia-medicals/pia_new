@@ -74,8 +74,9 @@ if (isset($user->profile_picture) && $user->profile_picture != "") {
                                 <p>All Studies</p>
                             </a>
                         </li>
+</ul>
 
-                        <li class="nav-item" data-active="dicom_details_my">
+                        <!--<li class="nav-item" data-active="dicom_details_my">
                             <a href="<?= SITE_URL ?>/analyst/analyst_dicom_details_my" class="nav-link">
                                 <i class="far fa-circle nav-icon"></i>
                                 <p>MY Studies</p>

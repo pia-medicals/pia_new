@@ -62,10 +62,10 @@ switch ($_SESSION['user']->user_type_ids) {
             /* adjust if needed */
         }
 
-        .card-collapsed {
-            max-height: 500px;
-            /* default height */
-        }
+        /* .card-collapsed {
+            max-height: 500px; */
+        /* default height */
+        /* } */
 
         .bold {
             font-weight: bold;
@@ -115,11 +115,26 @@ switch ($_SESSION['user']->user_type_ids) {
                                     <label>User Type</label>
                                     <select id="group_id" class="form-control" required="" name="group_id">
                                         <?php
+                                        /*
                                         foreach ($select_array as $key => $value) {
                                             $sel = (!empty($edit['user_type_ids']) && ($edit['user_type_ids'] == $value['user_type_id'])) ? 'selected' : '';
                                             echo '<option value="' . $value['user_type_id'] . '" ' . $sel . '>' . $value['user_type'] . '</option>';
+                                        } */
+
+                                        foreach ($select_array as $key => $value) {
+                                            $sel = (!empty($edit['user_type_ids']) && ($edit['user_type_ids'] == $value['user_type_id'])) ? 'selected' : '';
+                                            $display_text = ($value['user_type_id'] == 3 && $value['user_type'] == 'Analyst') ? 'Technologist' : $value['user_type'];
+                                            echo '<option value="' . $value['user_type_id'] . '" ' . $sel . '>' . $display_text . '</option>';
                                         }
+
                                         ?>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Organization</label>
+                                    <select id="orgz_id" class="form-control" name="orgz_id">
+                                        <option value="">Choose Organization</option>
                                     </select>
                                 </div>
 
@@ -184,6 +199,41 @@ switch ($_SESSION['user']->user_type_ids) {
 
         $("input[data-bootstrap-switch]").each(function() {
             $(this).bootstrapSwitch('state', $(this).prop('checked'));
+        });
+
+        $('#group_id').on('change', function() {
+            var selectedText = $("#group_id option:selected").text().trim();
+
+            if (selectedText === 'Client') {
+                $('#orgz_id').closest('.form-group').show();
+                $('#orgz_id').attr('required', true);
+            } else {
+                $('#orgz_id').closest('.form-group').hide();
+                $('#orgz_id').removeAttr('required');
+                $('#orgz_id').val('');
+            }
+        });
+
+        $('#group_id').trigger('change');
+
+        var selectedClientId = "<?= isset($edit['organization']) ? $edit['organization'] : '' ?>";
+
+        $.ajax({
+            url: '/get_organizations',
+            method: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                var $orgSelect = $('#orgz_id');
+                $orgSelect.empty().append('<option value="">Choose Organization</option>');
+
+                $.each(response, function(index, item) {
+                    var isSelected = item.value === selectedClientId ? ' selected' : '';
+                    $orgSelect.append('<option value="' + item.value + '"' + isSelected + '>' + item.text + '</option>');
+                });
+            },
+            error: function() {
+                alert('Failed to load organizations. Please try again.');
+            }
         });
 
         $('#togglePassword').on('click', function() {
@@ -311,6 +361,7 @@ switch ($_SESSION['user']->user_type_ids) {
             }
         });
 
+        <?php /*
         function save_user_details() {
             let is_active = $('#active').prop('checked') ? 1 : 0;
 
@@ -334,6 +385,79 @@ switch ($_SESSION['user']->user_type_ids) {
                         //form[0].reset();
                         resetPasswordRulesUI();
                         mug_alert_all('success', 'Success', response.msg);
+                    } else {
+                        mug_alert_all('error', 'Error', response.msg || 'Something went wrong. Please try again later!!');
+                    }
+                    $("#submit").prop("disabled", false).html('Save <i aria-hidden="true" class="fa fa-save"></i>');
+                },
+                error: function() {
+                    $("#submit").prop("disabled", false).html('Retry <i aria-hidden="true" class="fas fa-redo"></i>');
+                }
+            });
+        } */ ?>
+
+        function save_user_details() {
+            let is_active = $('#active').prop('checked') ? 1 : 0;
+
+            $("#submit").prop("disabled", true).html('Please wait... <i class="fa fa-spinner fa-spin"></i>');
+
+            let data = {
+                name: $("#name").val(),
+                email: $("#email").val(),
+                group_id: $("#group_id").val(),
+                password: $("#password").val(),
+                is_active: is_active,
+                id: $("#id").val()
+            };
+
+            if ($("#group_id").val() === "5") {
+                data.orgz_id = $("#orgz_id").val();
+            }
+
+            $.ajax({
+                type: "POST",
+                // data: {
+                //     name: $("#name").val(),
+                //     email: $("#email").val(),
+                //     group_id: $("#group_id").val(),
+                //     password: $("#password").val(),
+                //     is_active: is_active,
+                //     id: $("#id").val()
+                // },
+                data: data,
+                url: "/ajaxV2/edit_user_details",
+                dataType: "json",
+                timeout: 60000,
+                success: function(response) {
+                    if (response.success > 0) {
+                        //form[0].reset();
+                        $("#password").val('');
+                        resetPasswordRulesUI();
+                        mug_alert_all('success', 'Success', response.msg);
+
+                        if ($("#group_id").val() === "5") {
+
+                            var selectedClientId = $("#orgz_id").val();
+
+                            $.ajax({
+                                url: '/get_organizations',
+                                method: 'POST',
+                                dataType: 'json',
+                                success: function(response) {
+                                    var $orgSelect = $('#orgz_id');
+                                    $orgSelect.empty().append('<option value="">Choose Organization</option>');
+
+                                    $.each(response, function(index, item) {
+                                        var isSelected = item.value === selectedClientId ? ' selected' : '';
+                                        $orgSelect.append('<option value="' + item.value + '"' + isSelected + '>' + item.text + '</option>');
+                                    });
+                                },
+                                error: function() {
+                                    alert('Failed to load organizations. Please try again.');
+                                }
+                            });
+                        }
+
                     } else {
                         mug_alert_all('error', 'Error', response.msg || 'Something went wrong. Please try again later!!');
                     }

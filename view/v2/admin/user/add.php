@@ -65,10 +65,10 @@ switch ($_SESSION['user']->user_type_ids) {
             /* adjust if needed */
         }
 
-        .card-collapsed {
-            max-height: 500px;
-            /* default height */
-        }
+        /* .card-collapsed {
+            max-height: 500px; */
+        /* default height */
+        /* } */
 
         .bold {
             font-weight: bold;
@@ -113,9 +113,18 @@ switch ($_SESSION['user']->user_type_ids) {
                                         <?php
                                         $sel = '';
                                         foreach ($select_array as $key => $value) {
-                                            echo '<option value="' . $value['user_type_id'] . '"  >' . $value['user_type'] . '</option>';
+                                            /* echo '<option value="' . $value['user_type_id'] . '"  >' . $value['user_type'] . '</option>'; */
+                                            $display_text = ($value['user_type_id'] == 3 && $value['user_type'] == 'Analyst') ? 'Technologist' : $value['user_type'];
+                                            echo '<option value="' . $value['user_type_id'] . '">' . $display_text . '</option>';
                                         }
                                         ?>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Organization</label>
+                                    <select id="orgz_id" class="form-control" name="orgz_id">
+                                        <option value="">Choose Organization</option>
                                     </select>
                                 </div>
 
@@ -167,15 +176,32 @@ switch ($_SESSION['user']->user_type_ids) {
 <script>
     $(document).ready(function() {
 
+        $('#group_id').on('change', function() {
+            var selectedText = $("#group_id option:selected").text().trim();
+
+            if (selectedText === 'Client') {
+                $('#orgz_id').closest('.form-group').show();
+                $('#orgz_id').attr('required', true);
+            } else {
+                $('#orgz_id').closest('.form-group').hide();
+                $('#orgz_id').removeAttr('required');
+                $('#orgz_id').val('');
+            }
+        });
+
+        $('#group_id').trigger('change');
+
+ 
+
         $('#togglePassword').on('click', function() {
-            
+
             const passwordField = $('#password');
-            
+
             const passwordFieldType = passwordField.attr('type');
-            
+
             const passwordToggleIcon = $(this).find('i');
 
-            
+
             if (passwordFieldType === 'password') {
                 passwordField.attr('type', 'text');
                 passwordToggleIcon.removeClass('fa-eye').addClass('fa-eye-slash');
@@ -298,7 +324,7 @@ switch ($_SESSION['user']->user_type_ids) {
             }
         });
 
-        function save_user_details() {
+        <?php /* function save_user_details() {
             $("#submit").prop("disabled", true).html('Please wait... <i class="fa fa-spinner fa-spin"></i>');
             $.ajax({
                 type: "POST",
@@ -329,6 +355,71 @@ switch ($_SESSION['user']->user_type_ids) {
                     $("#submit").prop("disabled", false).html('Retry <i aria-hidden="true" class="fas fa-redo"></i>');
                 }
             });
+        } */ ?>
+
+        function save_user_details() {
+            $("#submit").prop("disabled", true).html('Please wait... <i class="fa fa-spinner fa-spin"></i>');
+
+            let data = {
+                name: $("#name").val(),
+                email: $("#email").val(),
+                group_id: $("#group_id").val(),
+                password: $("#password").val()
+            };
+
+            if ($("#group_id").val() === "5") {
+                data.orgz_id = $("#orgz_id").val();
+            }
+
+            $.ajax({
+                type: "POST",
+                url: "/ajaxV2/save_user_details",
+                data: data,
+                dataType: "json",
+                timeout: 60000,
+                success: function(response) {
+                    if (response.success === 1) {
+                        $("#addUserFrm")[0].reset();
+                        resetPasswordRulesUI();
+                        mug_alert_all('success', 'Success', response.msg);
+                    } else if (response.success === 2) {
+                        mug_alert_all('warning', 'Warning', response.msg);
+                    } else {
+                        mug_alert_all('error', 'Error', response.msg || 'Something went wrong. Please try again later!!');
+                    }
+                    $("#submit").prop("disabled", false).html('Save <i aria-hidden="true" class="fa fa-save"></i>');
+                },
+                error: function() {
+                    $("#submit").prop("disabled", false).html('Retry <i aria-hidden="true" class="fas fa-redo"></i>');
+                }
+            });
         }
     });
+ld_org();
+function ld_org() {
+    $.ajax({
+        type: "GET",
+        url: "/get_organizations",
+        data: { /* Add necessary parameters here if needed */ },
+        dataType: "json",
+        timeout: 60000, // Set a timeout of 60 seconds
+        success: function(response) {
+            var $orgSelect = $('#orgz_id');
+            $orgSelect.empty().append('<option value="">Choose Organization</option>');
+            $.each(response, function(index, item) {
+                $orgSelect.append('<option value="' + item.value + '">' + item.text + '</option>');
+            });
+        },
+        error: function(xhr, status, error) {
+            if (xhr.status === 404) {
+                alert('Organization data not found. Please try again.');
+            } else if (xhr.status === 500) {
+                alert('Server error. Please try again later.');
+            } else {
+                alert('Failed to load organizations: ' + error);
+            }
+        }
+    });
+}
+
 </script>

@@ -224,10 +224,21 @@ class admindb extends Model
 
         if ($group_id == 5) {
             $client = "INSERT INTO clients (client_name, created_by) VALUES ('$name', '$created_by')";
+
+            // echo "Client: $client";
+            // die();
+
             $result1 = $this->mysqli->query($client);
             $client_id = $this->mysqli->insert_id;
 
-            $sql = "INSERT INTO client_details (client_ids, user_ids, created_by) VALUES ('$client_id', '$customer_id', '$created_by')";
+            // echo "Client ID: $client_id";
+            // die();
+
+            // $sql = "INSERT INTO client_details (client_ids, user_ids, created_by) VALUES ('$client_id', '$customer_id', '$created_by')";
+            // $result2 = $this->mysqli->query($sql);
+            // $client_account_id = $this->mysqli->insert_id;
+
+            $sql = "INSERT INTO client_details (client_ids, user_ids, organization, created_by) VALUES ('$client_id', '$customer_id', '$orgz_id', '$created_by')";
             $result2 = $this->mysqli->query($sql);
             $client_account_id = $this->mysqli->insert_id;
         }
@@ -404,6 +415,41 @@ class admindb extends Model
     //     }
     // }
 
+    // Latest working code
+    // public function user_update($data = array())
+    // {
+    //     extract($data);
+    //     $name = $this->mysqli->real_escape_string($name);
+    //     $email = $this->mysqli->real_escape_string($email);
+    //     $id = $this->mysqli->real_escape_string($id);
+    //     $sql_query = "UPDATE users SET 
+    // 		user_type_ids = '$group_id',
+    // 		user_name = '$name',
+    // 		email = '$email',
+    // 		password = '$password',
+    // 		is_active = '$is_active'
+    // 	 WHERE user_id = '$id'";
+    //     $result = $this->mysqli->query($sql_query);
+    //     $status = array();
+    //     if ($result === TRUE) {
+    //         if ($group_id == 5) {
+    //             $client_id = $this->getClientId($id);
+    //             if (!empty($client_id)) {
+    //                 $upd1 = $this->update_client_name($name, $is_active, $client_id);
+    //                 $upd2 = $this->updateStatus('client_details', $client_id, 'client_ids', $is_active);
+    //             }
+    //         }
+    //         $status['type'] = 'success';
+    //         $status['msg'] = 'User Details Updated Successfully.';
+    //         return $status;
+    //     } else {
+    //         $status['type'] = 'danger';
+    //         $status['msg'] = "Error:" . $this->mysqli->error;
+    //         return $status;
+    //     }
+    // }
+    // Latest working code
+
     public function user_update($data = array())
     {
         extract($data);
@@ -421,10 +467,25 @@ class admindb extends Model
         $status = array();
         if ($result === TRUE) {
             if ($group_id == 5) {
+                $orgz_id = $this->mysqli->real_escape_string($orgz_id);
                 $client_id = $this->getClientId($id);
                 if (!empty($client_id)) {
                     $upd1 = $this->update_client_name($name, $is_active, $client_id);
-                    $upd2 = $this->updateStatus('client_details', $client_id, 'client_ids', $is_active);
+                    //$upd2 = $this->updateStatus('client_details', $client_id, 'client_ids', $is_active);
+                    $sql_query = "UPDATE client_details SET 
+                                  organization = '$orgz_id',
+                                  is_active = '$is_active'
+                                  WHERE client_ids = '$client_id' AND user_ids = '$id'";
+                    $result2 = $this->mysqli->query($sql_query);
+                    if ($result2 === TRUE) {
+                        $status['type'] = 'success';
+                        $status['msg'] = 'User Details Updated Successfully.';
+                        return $status;
+                    } else {
+                        $status['type'] = 'danger';
+                        $status['msg'] = "Error:" . $this->mysqli->error;
+                        return $status;
+                    }
                 }
             }
             $status['type'] = 'success';
@@ -2809,18 +2870,51 @@ WHERE subscription.client_account_ids = $client_account_id";
     //     return $data;
     // }
 
+    //Latest Working code
+    // public function user_by_id($id)
+    // {
+    //     $data = array();
+
+    //     $sql_query = "SELECT * FROM users WHERE user_id = $id";
+
+    //     $result = $this->mysqli->query($sql_query);
+    //     if ($result->num_rows > 0) {
+    //         while ($row = $result->fetch_assoc()) {
+    //             $data = $row;
+    //         }
+    //     }
+    //     return $data;
+    // }
+    //Latest working code
+
     public function user_by_id($id)
     {
-        $data = array();
+        $id = (int)$id;
+        $data = [];
 
         $sql_query = "SELECT * FROM users WHERE user_id = $id";
-
         $result = $this->mysqli->query($sql_query);
-        if ($result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $data = $row;
+
+        if ($result && $result->num_rows > 0) {
+            $data = $result->fetch_assoc();
+
+
+            if ($data['user_type_ids'] == '5') {
+
+                $client_sql = "SELECT organization FROM client_details WHERE user_ids = $id AND is_deleted = '0' LIMIT 1";
+                //echo "<pre>Query: $client_sql</pre>";
+                $client_result = $this->mysqli->query($client_sql);
+
+                if ($client_result && $client_result->num_rows > 0) {
+
+                    $client_row = $client_result->fetch_assoc();
+                    $data['organization'] = $client_row['organization'];
+                } else {
+                    $data['organization'] = null;
+                }
             }
         }
+
         return $data;
     }
 
@@ -4669,39 +4763,78 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
         return $data;
     }
 
-    public function insert_study($data = array())
-    {
-        $accession = $this->mysqli->real_escape_string($data["accession"]);
-        $mrn = $this->mysqli->real_escape_string($data["mrn"]);
-        $patient_name = $this->mysqli->real_escape_string($data["patient_name"]);
-        $client_site_name = $this->mysqli->real_escape_string($data["client_site_name"]);
-        $comment = $this->mysqli->real_escape_string($data["comment"]);
-        $analyst_id = $this->mysqli->real_escape_string($data["analyst_id"]);
-        $status_ids = $this->mysqli->real_escape_string($data["status_ids"]);
-        $client_account_ids = $this->mysqli->real_escape_string($data["client_account_ids"]);
-        $created_at = date('Y-m-d H:i:s');
+    //Made Changes Here On (23-06-2025)
+    public function insert_study($data = array()) {
+    $accession          = $this->mysqli->real_escape_string($data["accession"]);
+    $mrn                = $this->mysqli->real_escape_string($data["mrn"]);
+    $patient_name       = $this->mysqli->real_escape_string($data["patient_name"]);
+    $client_site_name   = $this->mysqli->real_escape_string($data["client_site_name"]);
+    $comment            = $this->mysqli->real_escape_string($data["comment"]);
+    $status_ids         = $this->mysqli->real_escape_string($data["status_ids"]);
+    $client_account_ids = $this->mysqli->real_escape_string($data["client_account_ids"]);
+    $created_at         = date('Y-m-d H:i:s');
 
-        $check_query = "SELECT * FROM studies WHERE accession = '$accession' AND mrn = '$mrn'";
-        $result1 = $this->mysqli->query($check_query);
+    // Step 1: Check for duplicate study
+    $check_query = "SELECT * FROM studies WHERE accession = '$accession' AND mrn = '$mrn'";
+    $result1 = $this->mysqli->query($check_query);
 
-        if ($result1->num_rows == 0) {
-            $insert_query = "INSERT INTO studies (
-                accession, mrn, patient_name, client_site_name, comment, analyst_id, status_ids, created_at, client_account_ids
-            ) VALUES (
-                '$accession', '$mrn', '$patient_name', '$client_site_name', '$comment', '$analyst_id', '$status_ids', '$created_at', '$client_account_ids'
-            )";
+    if ($result1->num_rows == 0) {
 
-            $result = $this->mysqli->query($insert_query);
+        // Step 2: Fetch contract_tat and unit from client_details
+        $tat_query = "SELECT contract_tat, contract_tat_unit 
+                      FROM client_details 
+                      WHERE client_account_id = '$client_account_ids'";
+        $tat_result = $this->mysqli->query($tat_query);
 
-            if ($result === TRUE) {
-                return ['type' => 'success', 'msg' => 'Study added successfully'];
-            } else {
-                return ['type' => 'danger', 'msg' => 'Error: ' . $this->mysqli->error];
+        $actual_tat = null;
+
+        if ($tat_result && $tat_result->num_rows > 0) {
+            $tat_row = $tat_result->fetch_assoc();
+            $tat_val = floatval($tat_row['contract_tat']);
+            $tat_unit = strtolower(trim($tat_row['contract_tat_unit']));
+
+            // Convert to minutes
+            switch ($tat_unit) {
+                case '':
+                    $actual_tat = $tat_val;
+                    break;
+                case NULL:
+                    $actual_tat = $tat_val;
+                    break;
+
+                case 'minutes':
+                    $actual_tat = $tat_val;
+                    break;
+                case 'hours':
+                    $actual_tat = $tat_val * 60;
+                    break;
+                case 'days':
+                    $actual_tat = $tat_val * 1440;
+                    break;
+                default:
+                    $actual_tat = null; // unknown unit
             }
-        } else {
-            return ['type' => 'danger', 'msg' => 'Duplicate Entry - Study with same MRN and Accession exists'];
         }
+
+        // Step 3: Insert into studies
+        $insert_query = "INSERT INTO studies (
+            accession, mrn, patient_name, client_site_name, comment, status_ids, created_at, client_account_ids, actual_tat
+        ) VALUES (
+            '$accession', '$mrn', '$patient_name', '$client_site_name', '$comment', '$status_ids', '$created_at', '$client_account_ids', " .
+            ($actual_tat !== null ? "'$actual_tat'" : "NULL") . "
+        )";
+
+        $result = $this->mysqli->query($insert_query);
+
+        if ($result === TRUE) {
+            return ['type' => 'success', 'msg' => 'Study added successfully'];
+        } else {
+            return ['type' => 'danger', 'msg' => 'Error: ' . $this->mysqli->error];
+        }
+    } else {
+        return ['type' => 'danger', 'msg' => 'Duplicate Entry - Study with same MRN and Accession exists'];
     }
+}
 
     public function get_latest_analysis_rates($client_account_id, $analysis_client_price_id)
     {
@@ -5223,7 +5356,37 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
             $client = "INSERT INTO clients (client_name, created_by) VALUES ('$client_name', '$created_by')";
             $result1 = $this->mysqli->query($client);
             $client_id = $this->mysqli->insert_id;
-            $sql = "INSERT INTO client_details (client_ids, user_ids, created_by) VALUES ('$client_id', '$customer_id', '$created_by')";
+            // $sql = "INSERT INTO client_details (client_ids, user_ids, created_by) VALUES ('$client_id', '$customer_id', '$created_by')";
+            $sql = "INSERT INTO client_details (client_ids,
+            user_ids,
+            site_code,
+            client_site_name,
+            is_headquarters,
+            address_line1,
+            address_line2,
+            city,
+            state,
+            zipcode,
+            phone_number,
+            contract_tat,
+            contract_tat_unit,
+            contract_tat_minutes,
+            is_active,
+            created_by) VALUES ('$client_id',
+            '$customer_id',
+            '$site_code',
+            '$client_site_name',
+            '$is_headquarters',
+            '$address_line1',
+            '$address_line2',
+            '$city',
+            '$state',
+            '$zipcode',
+            '$phone_number',
+            '$tat',
+            '$tat_unit',
+            '$tat_min',
+            '$created_by')";
             $result2 = $this->mysqli->query($sql);
             $client_account_id = $this->mysqli->insert_id;
             if ($result2 === TRUE) {
@@ -6032,7 +6195,7 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
         return $result;
     }
 
-    public function get_all_clients()
+    /*public function get_all_clients()
     {
         $data = [];
         $sql = "SELECT c.client_account_id, u.user_name
@@ -6049,7 +6212,30 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
         }
 
         return $data;
+    }*/
+	
+	    //Made Changes Here On(23-06-2025)
+    public function get_all_clients() {
+    $data = [];
+    $sql = "SELECT 
+                c.client_account_id, 
+                c.contract_tat, 
+                c.contract_tat_unit, 
+                cl.client_name, 
+                cl.client_number
+            FROM client_details c
+            JOIN clients cl ON cl.client_id = c.client_ids";
+
+    $result = $this->mysqli->query($sql);
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $data[] = $row;
+        }
     }
+    return $data;
+}
+	
+	
 
     public function get_miscellaneous_billing_by_id($id)
     {
@@ -6130,7 +6316,7 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
 
     public function get_studies_by_id($id)
     {
-        $sql = "SELECT 
+    $sql = "SELECT 
                 s.studies_id, 
                 s.accession, 
                 s.patient_name, 
@@ -6140,24 +6326,27 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
                 s.comment, 
                 s.second_analyst_id, 
                 s.client_account_ids,
+                s.analyst_id,
+                u.user_name AS analyst_name,  -- ✅ Analyst Name from users table
                 c.client_name AS webhook_customer
             FROM studies s
             LEFT JOIN client_details cd ON s.client_account_ids = cd.client_account_id
             LEFT JOIN clients c ON cd.client_ids = c.client_id
+            LEFT JOIN users u ON s.analyst_id = u.user_id  -- ✅ JOIN with users table
             WHERE s.studies_id = ?
             LIMIT 1";
 
-        $stmt = $this->mysqli->prepare($sql);
-        if (!$stmt) {
-            die("Prepare failed: (" . $this->mysqli->errno . ") " . $this->mysqli->error);
-        }
-
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        return $result->fetch_assoc();
+    $stmt = $this->mysqli->prepare($sql);
+    if (!$stmt) {
+        die("Prepare failed: (" . $this->mysqli->errno . ") " . $this->mysqli->error);
     }
+
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    return $result->fetch_assoc();
+}
 
     // Update Study Details a function Inside study
 
@@ -6166,16 +6355,18 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
 
     public function update_study_details($studies_id, $second_analyst_id, $status_ids, $analysis_performed_array)
     {
-        // 1. Update studies table (exclude analysis_performed)
+        error_log("Starting update_study_details for studies_id: $studies_id");
+        // Update studies table
         $sql = "UPDATE studies 
-            SET 
-                second_analyst_id = ?, 
-                status_ids = ?
-            WHERE studies_id = ?";
+                SET 
+                    second_analyst_id = ?, 
+                    status_ids = ?
+                WHERE studies_id = ?";
 
         $stmt = $this->mysqli->prepare($sql);
         if (!$stmt) {
-            die("Prepare failed: (" . $this->mysqli->errno . ") " . $this->mysqli->error);
+            error_log("Prepare failed (studies update): (" . $this->mysqli->errno . ") " . $this->mysqli->error);
+            return false;
         }
 
         $stmt->bind_param("iii", $second_analyst_id, $status_ids, $studies_id);
@@ -6183,28 +6374,92 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
         $stmt->close();
 
         if (!$success) {
+            error_log("Studies update failed for studies_id: $studies_id");
             return false;
         }
+        error_log("Studies table updated successfully for studies_id: $studies_id");
 
-        // 2. Insert new analysis_performed entries only (append)
-        $insert_sql = "INSERT INTO analyses_performed (studies_ids, analysis_performed) VALUES (?, ?)";
-        $stmt = $this->mysqli->prepare($insert_sql);
+        // Delete old analyses_performed rows
+        $del_sql = "DELETE FROM analyses_performed WHERE studies_ids = ?";
+        $del_stmt = $this->mysqli->prepare($del_sql);
+        if (!$del_stmt) {
+            error_log("Prepare failed (delete analyses_performed): (" . $this->mysqli->errno . ") " . $this->mysqli->error);
+            return false;
+        }
+        $del_stmt->bind_param("i", $studies_id);
+        $del_success = $del_stmt->execute();
+        $del_stmt->close();
 
-        if (!$stmt) {
-            die("Prepare failed (insert): (" . $this->mysqli->errno . ") " . $this->mysqli->error);
+        if (!$del_success) {
+            error_log("Failed to delete existing analyses_performed for studies_id: $studies_id");
+        } else {
+            error_log("Deleted existing analyses_performed for studies_id: $studies_id");
         }
 
-        foreach ($analysis_performed_array as $item) {
-            $item = trim($item);
-            if (!empty($item)) {
-                $stmt->bind_param("is", $studies_id, $item);
-                $stmt->execute();
+        // Insert new analyses_performed rows (one per analysis)
+        $inserted_analyses = 0;
+        if (!empty($analysis_performed_array)) {
+            $insert_sql = "INSERT INTO analyses_performed (
+                studies_ids, 
+                analysis_client_price_ids, 
+                analysis_client_price, 
+                analysis_performed,
+                created_by,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, NOW())";
+
+            $stmt = $this->mysqli->prepare($insert_sql);
+            if (!$stmt) {
+                error_log("Prepare failed (insert analyses_performed): (" . $this->mysqli->errno . ") " . $this->mysqli->error);
+                return false;
             }
+
+            foreach ($analysis_performed_array as $item) {
+                $analysis_name = $item['analysis_name'] ?? '';
+                $client_account_ids = $item['client_account_ids'] ?? 0;
+
+                if (empty($analysis_name)) {
+                    error_log("Skipping empty analysis_name for studies_id: $studies_id");
+                    continue;
+                }
+
+                // Get or create price row
+                $price_row = $this->get_analysis_price_row($client_account_ids, $analysis_name);
+                if (!$price_row) {
+                    error_log("Failed to get or create price row for analysis_name: $analysis_name, client_account_ids: $client_account_ids");
+                    continue;
+                }
+
+                $analysis_client_price_id = $price_row['analysis_client_price_id'];
+                $analysis_client_price = $price_row['analysis_client_price'] ?? 0.00;
+                $created_by = $_SESSION['user']->user_id ?? 0;
+
+                $stmt->bind_param(
+                    "iidsi",
+                    $studies_id,
+                    $analysis_client_price_id,
+                    $analysis_client_price,
+                    $analysis_name,
+                    $created_by
+                );
+
+                if (!$stmt->execute()) {
+                    error_log("Insert failed for analysis_name: $analysis_name, analysis_client_price_id: $analysis_client_price_id, studies_id: $studies_id, error: " . $stmt->error);
+                } else {
+                    error_log("Inserted analysis_name: $analysis_name, analysis_client_price_id: $analysis_client_price_id, analysis_client_price: $analysis_client_price for studies_id: $studies_id");
+                    $inserted_analyses++;
+                }
+            }
+
+            $stmt->close();
+        } else {
+            error_log("No analyses to insert for studies_id: $studies_id");
         }
 
-        $stmt->close();
-        return true;
+        error_log("update_study_details completed for studies_id: $studies_id, inserted $inserted_analyses analyses");
+        return true; // Always return true since no validation
     }
+
 
     //Get Studies By id for retrieving the status
 
@@ -6238,27 +6493,31 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
         return $study;
     }
 
-    // A function Inside the function study
 
 
-    public function assign_study_to_analyst($studies_id, $analyst_id)
-    {
-        $studies_id = $this->mysqli->real_escape_string($studies_id);
-        $analyst_id = $this->mysqli->real_escape_string($analyst_id);
 
-        $sql_query = "UPDATE studies SET analyst_id = '$analyst_id' WHERE studies_id = '$studies_id'";
-        $result = $this->mysqli->query($sql_query);
+    // A function Inside the function study(23-06-2025)
+    public function assign_study_to_analyst($studies_id, $current_user_id) {
+    $studies_id = $this->mysqli->real_escape_string($studies_id);
+    $analyst_id = $this->mysqli->real_escape_string($current_user_id);
 
-        $status = array();
-        if ($result === TRUE) {
-            $status['type'] = 'success';
-            $status['msg'] = 'Study assigned successfully';
-        } else {
-            $status['type'] = 'error';
-            $status['msg'] = "Error: " . $this->mysqli->error;
-        }
-        return $status;
+    // Update analyst and mark status as "In Progress" (status_id = 3)
+    $sql_query = "UPDATE studies SET analyst_id = '$analyst_id', status_ids = 3 WHERE studies_id = '$studies_id'";
+    $result = $this->mysqli->query($sql_query);
+
+    if ($result === TRUE) {
+        // Return study with status joined
+        $sql = "SELECT s.*, a.status 
+                FROM studies s
+                LEFT JOIN analysis_status a ON s.status_ids = a.status_id
+                WHERE s.studies_id = '$studies_id'";
+
+        $result_data = $this->mysqli->query($sql);
+        return $result_data->fetch_assoc();
+    } else {
+        return false;
     }
+}
 
     public function get_studies_open_current_month()
     {
@@ -6299,5 +6558,350 @@ INNER JOIN analyses_category ON (analyses.category_ids = analyses_category.categ
         }
 
         return $studies;
+    }
+
+    public function check_duplicate_site_code($site_code, $created_by)
+    {
+
+        $stmt = $this->mysqli->prepare("
+            SELECT 
+                site_code 
+            FROM 
+                client_details 
+            WHERE 
+                site_code = ? 
+                AND created_by = ? 
+                AND is_deleted = '0' 
+            LIMIT 1
+        ");
+
+        if (!$stmt) {
+            error_log("Prepare failed in check_duplicate_site_code: " . $this->mysqli->error);
+            return null;
+        }
+
+
+        $stmt->bind_param("si", $site_code, $created_by);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $duplicate_data = $result->fetch_assoc();
+        $stmt->close();
+
+        return $duplicate_data;
+    }
+
+    // public function add_the_new_client($form_data)
+    // {
+    //     $client_name = !empty($form_data['client_name']) ? $this->mysqli->real_escape_string($form_data['client_name']) : '';
+    //     $email = !empty($form_data['email']) ? $this->mysqli->real_escape_string($form_data['email']) : '';
+    //     $site_code = !empty($form_data['site_code']) ? $this->mysqli->real_escape_string($form_data['site_code']) : '';
+    //     $client_code = !empty($form_data['client_code']) ? $this->mysqli->real_escape_string($form_data['client_code']) : '';
+    //     $client_site_name = !empty($form_data['client_site_name']) ? $this->mysqli->real_escape_string($form_data['client_site_name']) : '';
+    //     $is_headquarters = isset($form_data['is_headquarters']) ? $this->mysqli->real_escape_string($form_data['is_headquarters']) : 0;
+    //     $address_line1 = !empty($form_data['address_line1']) ? $this->mysqli->real_escape_string($form_data['address_line1']) : '';
+    //     $address_line2 = !empty($form_data['address_line2']) ? $this->mysqli->real_escape_string($form_data['address_line2']) : '';
+    //     $city = !empty($form_data['city']) ? $this->mysqli->real_escape_string($form_data['city']) : '';
+    //     $state = !empty($form_data['state']) ? $this->mysqli->real_escape_string($form_data['state']) : '';
+    //     $zipcode = !empty($form_data['zipcode']) ? $this->mysqli->real_escape_string($form_data['zipcode']) : '';
+    //     $phone_number = !empty($form_data['phone_number']) ? $this->mysqli->real_escape_string($form_data['phone_number']) : '';
+    //     $tat = !empty($form_data['tat']) ? $this->mysqli->real_escape_string($form_data['tat']) : '';
+    //     $tat_unit =  !empty($form_data['tat_unit']) ? $this->mysqli->real_escape_string($form_data['tat_unit']) : '';
+
+    //     if ((strtolower(trim($tat_unit)) === 'hours' || strtolower(trim($tat_unit)) === 'hour') && is_numeric($tat)) {
+    //         $tat_min = $tat * 60;
+    //     } elseif (strtolower(trim($tat_unit)) === 'minutes' || strtolower(trim($tat_unit)) === 'minute' && is_numeric($tat)) {
+    //         $tat_min = $tat;
+    //     }
+
+    //     $is_active = isset($form_data['active']) ? $form_data['active'] : 0;
+
+    //     $created_by = $_SESSION['user']->user_id;
+    // }
+
+    public function add_the_new_client($form_data)
+    {
+        // Basic sanitization
+        $client_name = $this->mysqli->real_escape_string($form_data['client_name'] ?? '');
+        $email = $this->mysqli->real_escape_string($form_data['email'] ?? '');
+        $site_code = $this->mysqli->real_escape_string($form_data['site_code'] ?? '');
+        $client_code = $this->mysqli->real_escape_string($form_data['client_code'] ?? ('CL' . time()));
+        $client_site_name = $this->mysqli->real_escape_string($form_data['client_site_name'] ?? '');
+        $is_headquarters = isset($form_data['is_headquarters']) && $form_data['is_headquarters'] === 'on' ? '1' : '0';
+        $address_line1 = $this->mysqli->real_escape_string($form_data['address_line1'] ?? '');
+        $address_line2 = $this->mysqli->real_escape_string($form_data['address_line2'] ?? '');
+        $city = $this->mysqli->real_escape_string($form_data['city'] ?? '');
+        $state = $this->mysqli->real_escape_string($form_data['state'] ?? '');
+        $zipcode = $this->mysqli->real_escape_string($form_data['zipcode'] ?? '');
+        $phone_number = $this->mysqli->real_escape_string($form_data['phone_number'] ?? '');
+        $tat = $this->mysqli->real_escape_string((string)($form_data['tat'] ?? ''));
+        $tat_unit = $this->mysqli->real_escape_string((string)($form_data['tat_unit'] ?? ''));
+
+        // Convert TAT to minutes
+        $tat_min = 0;
+        if (is_numeric($tat)) {
+            if (in_array(strtolower($tat_unit), ['hours', 'hour'])) {
+                $tat_min = $tat * 60;
+            } elseif (in_array(strtolower($tat_unit), ['minutes', 'minute'])) {
+                $tat_min = $tat;
+            }
+        }
+
+        // $is_active = (int)($form_data['active'] ?? 0);
+        $is_active = 1;
+        $created_by = (int)($form_data['created_by'] ?? 0);
+        $user_type_ids = 5;
+        $default_password = 'NOT ASSIGNED';
+
+        $this->mysqli->begin_transaction();
+
+        try {
+            // Insert into users table
+            $stmt_user = $this->mysqli->prepare("
+            INSERT INTO users (email, user_name, user_type_ids, created_by, password)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+            if (!$stmt_user) {
+                echo json_encode(['success' => 0, 'msg' => 'Prepare failed (users): ' . $this->mysqli->error]);
+                $this->mysqli->rollback();
+                return false;
+            }
+
+            $stmt_user->bind_param("ssiis", $email, $client_name, $user_type_ids, $created_by, $default_password);
+
+            if (!$stmt_user->execute()) {
+                echo json_encode(['success' => 0, 'msg' => 'Insert failed (users): ' . $stmt_user->error]);
+                $this->mysqli->rollback();
+                $stmt_user->close();
+                return false;
+            }
+
+            $user_id = $this->mysqli->insert_id;
+            $stmt_user->close();
+
+            // Insert into clients table
+            $stmt_client = $this->mysqli->prepare("
+            INSERT INTO clients (client_number, client_name, client_email, created_by, is_active)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+            if (!$stmt_client) {
+                echo json_encode(['success' => 0, 'msg' => 'Prepare failed (clients): ' . $this->mysqli->error]);
+                $this->mysqli->rollback();
+                return false;
+            }
+
+            $stmt_client->bind_param("sssii", $client_code, $client_name, $email, $created_by, $is_active);
+
+            if (!$stmt_client->execute()) {
+                echo json_encode(['success' => 0, 'msg' => 'Insert failed (clients): ' . $stmt_client->error]);
+                $this->mysqli->rollback();
+                $stmt_client->close();
+                return false;
+            }
+
+            $client_id = $this->mysqli->insert_id;
+            $stmt_client->close();
+
+            // Insert into client_details table
+            $stmt_details = $this->mysqli->prepare("
+            INSERT INTO client_details (
+                client_ids, site_code, client_site_name, is_headquarters,
+                address_line1, address_line2, city, state, zipcode,
+                phone_number, contract_tat, contract_tat_unit,
+                contract_tat_minutes, created_by, user_ids
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+            if (!$stmt_details) {
+                echo json_encode(['success' => 0, 'msg' => 'Prepare failed (client_details): ' . $this->mysqli->error]);
+                $this->mysqli->rollback();
+                return false;
+            }
+
+            $stmt_details->bind_param(
+                "isssssssssisiii",
+                $client_id,
+                $site_code,
+                $client_site_name,
+                $is_headquarters,
+                $address_line1,
+                $address_line2,
+                $city,
+                $state,
+                $zipcode,
+                $phone_number,
+                $tat,
+                $tat_unit,
+                $tat_min,
+                $created_by,
+                $user_id
+            );
+
+            if (!$stmt_details->execute()) {
+                echo json_encode(['success' => 0, 'msg' => 'Insert failed (client_details): ' . $stmt_details->error]);
+                $this->mysqli->rollback();
+                $stmt_details->close();
+                return false;
+            }
+
+            $stmt_details->close();
+            $this->mysqli->commit();
+            return true;
+        } catch (Exception $e) {
+            echo json_encode(['success' => 0, 'msg' => 'Exception: ' . $e->getMessage()]);
+            $this->mysqli->rollback();
+            return false;
+        }
+    }
+	public function get_analysis_price_row($client_account_ids, $analysis_name)
+    {
+        $client_account_ids = $client_account_ids ?? 0; // Default to 0 if null
+        error_log("get_analysis_price_row called for analysis_name: $analysis_name, analysis_name: $client_account_ids");
+
+        // Try to find existing price row
+        $stmt = $this->mysqli->prepare("
+            SELECT analysis_client_price_id, analysis_client_price, analysis_name
+            FROM analyses_client_price_details 
+            WHERE client_account_ids = ? 
+            AND LOWER(TRIM(analysis_name)) = LOWER(?) 
+            AND is_active = '1' 
+            AND is_deleted = '0' 
+            LIMIT 1
+        ");
+        if (!$stmt) {
+            error_log("Prepare failed in get_analysis_price_row: " . $this->mysqli->error);
+            return null;
+        }
+        $stmt->bind_param("is", $client_account_ids, $analysis_name);
+        if (!$stmt->execute()) {
+            error_log("Execute failed in get_analysis_price_row: " . $stmt->error);
+            $stmt->close();
+            return null;
+        }
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+        error_log("get_analysis_price_row result for client_account_ids $client_account_ids, analysis_name $analysis_name: " . print_r($row, true));
+
+        if ($row) {
+            return $row;
+        }
+
+        // Get or create analysis_id
+        $analysis_id = $this->get_or_create_analysis_id($analysis_name);
+        if (!$analysis_id) {
+            error_log("Failed to get or create analysis_id for analysis_name: $analysis_name");
+            return null;
+        }
+
+        // Create placeholder price row
+        error_log("Creating placeholder price row for analysis_name: $analysis_name, client_account_ids: $client_account_ids, analysis_id: $analysis_id");
+        $stmt = $this->mysqli->prepare("
+            INSERT INTO analyses_client_price_details (
+                client_account_ids, 
+                analysis_id, 
+                analysis_name, 
+                analysis_client_price, 
+                is_active, 
+                is_deleted, 
+                created_by, 
+                created_at
+            ) VALUES (?, ?, ?, 0.00, '1', '0', ?, NOW())
+        ");
+        if (!$stmt) {
+            error_log("Prepare failed for placeholder insert: " . $this->mysqli->error);
+            return null;
+        }
+        $created_by = $_SESSION['user']->user_id ?? 0;
+        $stmt->bind_param("iisi", $client_account_ids, $analysis_id, $analysis_name, $created_by);
+        if (!$stmt->execute()) {
+            error_log("Insert failed for placeholder price row: " . $stmt->error);
+            $stmt->close();
+            return null;
+        }
+        $new_id = $this->mysqli->insert_id;
+        $stmt->close();
+
+        error_log("Created placeholder price row with analysis_client_price_id: $new_id");
+        return [
+            'analysis_client_price_id' => $new_id,
+            'analysis_client_price' => 0.00,
+            'analysis_name' => $analysis_name
+        ];
+    }
+	public function update_client_assignment($study_id, $new_client_account_id) {
+    // Get client info
+    $stmt = $this->mysqli->prepare("
+        SELECT contract_tat, contract_tat_unit, client_ids 
+        FROM client_details 
+        WHERE client_account_id = ?
+    ");
+    $stmt->bind_param("i", $new_client_account_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if (!$result || $result->num_rows == 0) {
+        return ['status' => 'error', 'message' => 'Client not found'];
+    }
+
+    $clientDetails = $result->fetch_assoc();
+    $tat = (int) $clientDetails['contract_tat'];
+    $unit = strtolower($clientDetails['contract_tat_unit']);
+    $client_id = (int) $clientDetails['client_ids'];
+
+    // Convert TAT to minutes
+    switch ($unit) {
+        case 'hours': $tat *= 60; break;
+        case 'days': $tat *= 1440; break;
+    }
+
+    // Update studies
+    $update = $this->mysqli->prepare("
+        UPDATE studies 
+        SET client_account_ids = ?, actual_tat = ? 
+        WHERE studies_id = ?
+    ");
+    $update->bind_param("iii", $new_client_account_id, $tat, $study_id);
+    if (!$update->execute()) {
+        return ['status' => 'error', 'message' => 'Failed to update study'];
+    }
+
+    // Get client name
+    $stmt2 = $this->mysqli->prepare("SELECT client_name FROM clients WHERE client_id = ?");
+    $stmt2->bind_param("i", $client_id);
+    $stmt2->execute();
+    $result2 = $stmt2->get_result();
+    $client_name = ($result2 && $result2->num_rows > 0) ? $result2->fetch_assoc()['client_name'] : 'Unknown';
+
+    return [
+        'status' => 'success',
+        'message' => 'Client updated successfully',
+        'client_account_id' => $new_client_account_id,
+        'client_name' => $client_name
+    ];
+}
+public function get_analyses_performed_by_study($studies_id)
+    {
+        $stmt = $this->mysqli->prepare("
+            SELECT analysis_performed 
+            FROM analyses_performed 
+            WHERE studies_ids = ?
+        ");
+        if (!$stmt) {
+            error_log("Prepare failed in get_analyses_performed_by_study: " . $this->mysqli->error);
+            return [];
+        }
+        $stmt->bind_param("i", $studies_id);
+        if (!$stmt->execute()) {
+            error_log("Execute failed in get_analyses_performed_by_study: " . $stmt->error);
+            $stmt->close();
+            return [];
+        }
+        $result = $stmt->get_result();
+        $analyses = [];
+        while ($row = $result->fetch_assoc()) {
+            $analyses[] = $row;
+        }
+        $stmt->close();
+        return $analyses;
     }
 }

@@ -2,10 +2,13 @@
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Settings;
+use PhpOffice\PhpSpreadsheet\CachedObjectStorageFactory;
 
 class AjaxV3 extends Controller {
 
@@ -5826,6 +5829,250 @@ Assigned')) . '">Not Assigned</span>';
         die;
     }
 
+// To Retrieve Analayst Details For DIsplaying In All.php
+public function get_studies_info_analyst() { 
+    $con = $this->getConnection();
+    $request = $_REQUEST;
+
+    $col = array(
+        0 => 'studies.created_at',
+        1 => 'studies.accession',
+        2 => 'studies.patient_name',
+        3 => 'studies.mrn',
+        4 => 't2.contract_tat_minutes',
+        5 => 'dicom_webhook_details.webhook_customer',
+        6 => 't5.user_name',
+        7 => 't7.user_name',
+        8 => 't3.client_name',
+        9 => 'studies.client_site_name',
+        10 => 'studies.comment',
+        11 => 't6.status',
+        12 => 'studies.studies_id'
+    );
+
+    $second_check = $_POST['second_check'] ?? '';
+    $selectedDays = $_POST['selectedDays'] ?? '';
+    $assignee = $_POST['assignee'] ?? '';
+    $secondAssignee = $_POST['secondAssignee'] ?? '';
+    $status = $_POST['status'] ?? '';
+    $search_str = trim($request['search']['value']);
+
+   $sql = "SELECT 
+    studies.studies_id, studies.accession, studies.mrn, studies.patient_name, 
+    studies.analyst_id, studies.second_analyst_id, studies.dicom_webhook_ids, 
+    studies.status_ids, studies.created_at, studies.actual_tat, 
+    studies.client_account_ids, studies.client_site_name, studies.comment, 
+    dicom_webhook_details.dicom_webhook_id, dicom_webhook_details.webhook_customer, 
+    dicom_webhook_details.webhook_description,
+    IFNULL(t5.user_name, 'Not Assigned') AS assignee_name,
+    IFNULL(t7.user_name, 'Not Reviewed') AS second_checker,
+    t6.status, t3.client_name, t3.client_number 
+FROM studies 
+LEFT JOIN dicom_webhook_details ON studies.dicom_webhook_ids = dicom_webhook_details.dicom_webhook_id 
+LEFT JOIN client_details t2 ON studies.client_account_ids = t2.client_account_id 
+LEFT JOIN clients t3 ON t2.client_ids = t3.client_id 
+LEFT JOIN users t4 ON t2.user_ids = t4.user_id 
+LEFT JOIN users t5 ON studies.analyst_id = t5.user_id 
+LEFT JOIN analysis_status t6 ON studies.status_ids = t6.status_id 
+LEFT JOIN users t7 ON studies.second_analyst_id = t7.user_id 
+WHERE 1=1";
+
+
+    if (!empty($selectedDays)) {
+        $sql .= " AND TIMESTAMPDIFF(DAY, studies.created_at, NOW()) < '" . $selectedDays . "' ";
+    }
+
+    if (!empty($assignee)) {
+        $sql .= " AND studies.analyst_id = '" . $assignee . "' ";
+    }
+
+    if (!empty($second_check)) {
+        if ($second_check == 1) {
+            $sql .= " AND studies.second_analyst_id !='' ";
+            if (!empty($secondAssignee)) {
+                $sql .= " AND studies.second_analyst_id = '" . $secondAssignee . "' ";
+            }
+        } else {
+            $sql .= " AND (studies.second_analyst_id ='' OR studies.second_analyst_id IS NULL)";
+        }
+    }
+
+    if (!empty($status)) {
+        $sql .= " AND studies.status_ids = '" . $status . "' ";
+    }
+
+    if (!empty($search_str)) {
+        $sql .= " AND (studies.accession LIKE '%" . $search_str . "%' ";
+        $sql .= " OR studies.mrn LIKE '%" . $search_str . "%' ";
+        $sql .= " OR studies.patient_name LIKE '%" . $search_str . "%' ";
+        $sql .= " OR dicom_webhook_details.webhook_customer LIKE '%" . $search_str . "%' ";
+        $sql .= " OR dicom_webhook_details.webhook_description LIKE '%" . $search_str . "%' ";
+        $sql .= " OR studies.comment LIKE '%" . $search_str . "%' ";
+        $sql .= " OR CONCAT(t2.contract_tat, ' ', t2.contract_tat_unit) LIKE '%" . $search_str . "%' ";
+        $sql .= " OR studies.client_site_name LIKE '%" . $search_str . "%' ";
+        $sql .= " OR t4.user_name LIKE '%" . $search_str . "%' ";
+        $sql .= " OR t5.user_name LIKE '%" . $search_str . "%' ";
+        $sql .= " OR t6.status LIKE '%" . $search_str . "%' ";
+        $sql .= " OR t7.user_name LIKE '%" . $search_str . "%' ";
+        $sql .= " OR t3.client_name LIKE '%" . $search_str . "%')";
+    }
+
+    $query = mysqli_query($con, $sql);
+    $totalData = mysqli_num_rows($query);
+    $totalFilter = $totalData;
+
+    $sql .= " ORDER BY 
+  CASE 
+    WHEN t6.status = 'Not Assigned' THEN 1
+    WHEN t6.status = 'On hold' THEN 2
+    WHEN t6.status = 'In progress' THEN 3
+    WHEN t6.status = 'Completed' THEN 4
+    ELSE 5
+  END,
+  " . $col[$request['order'][0]['column']] . " " . $request['order'][0]['dir'] . " 
+  LIMIT " . $request['start'] . " ," . $request['length'];
+
+    $query = mysqli_query($con, $sql);
+
+    $data = array();
+    $i = 0;
+
+    while ($row = mysqli_fetch_array($query)) {
+        $subdata = array();
+
+        $studies_id = $row['studies_id'];
+        $originalDate = $row['created_at'];
+        $newDate = date("m-d-Y h:i A", strtotime($originalDate));
+        $subdata[] = !empty($originalDate) ? $newDate : $row['created_at'];
+        $subdata[] = $row['accession'];
+        $subdata[] = $row['patient_name'];
+        $subdata[] = $row['mrn'];
+        $subdata[] = $row['comment'] ?? $row['webhook_description']; // ✅ show comment if available
+        $subdata[] = $row['client_site_name'] ?? '';
+
+       $client_display = $row['client_name'] ?? '';
+        $client_number = $row['client_number'] ?? '';
+        $client_account_id = $row['client_account_id'] ?? 0;
+        $studies_id = $row['studies_id'];
+
+        $subdata[] = "
+        <span 
+            class='change-client-span' 
+            data-account-id='{$client_account_id}' 
+            data-study-id='{$studies_id}' 
+            data-client-name='" . htmlspecialchars($client_display, ENT_QUOTES) . "' 
+            style='cursor: pointer; text-decoration: underline; color: #007bff;'>
+            {$client_display} 
+        </span>
+        ";
+
+
+
+
+        $actual_tat = $row['actual_tat'] ?? '';
+        $study_id = $row['studies_id'];
+
+        $ctat_display = htmlspecialchars(trim($actual_tat));
+
+        $subdata[] = "<span 
+            class='editable-tat' 
+            data-study-id='{$study_id}' 
+            data-tat='{$actual_tat}' 
+            style='cursor: pointer; text-decoration: underline; color: #007bff;'>
+            {$ctat_display}
+        </span>";
+
+
+
+            $actual_tat_minutes = is_numeric($row['actual_tat']) ? (int)$row['actual_tat'] : 0;
+            $study_id = $row['studies_id'];
+            $created_time = new DateTime($row['created_at']);
+            $now = new DateTime();
+
+            // ➕ Add TAT minutes to created_at
+            $due_time = clone $created_time;
+            $due_time->modify("+{$actual_tat_minutes} minutes");
+
+            // ⏳ Calculate remaining or overdue interval
+            $interval = $now->diff($due_time);
+            $remaining_minutes = ($due_time->getTimestamp() - $now->getTimestamp()) / 60;
+            $remaining_text = '';
+
+            if ($remaining_minutes > 0) {
+                // ✅ Still within time
+                $remaining_text = $interval->format('%h hrs %i min') . ' remaining';
+            } else {
+                // ❌ Overdue
+                $overdue = $interval->format('%h hrs %i min');
+                $remaining_text = "<span style='color:red;'>Overdue by $overdue</span>";
+            }
+
+            $subdata[] = $remaining_text;
+
+
+        $subdata[] = ($row['assignee_name'] === 'Not Assigned') ? '<span style="color: black;">Not Assigned</span>' : $row['assignee_name'];
+        $subdata[] = ($row['second_checker'] === 'Not Reviewed') ? '<span style="color: black;">Not Reviewed</span>' : $row['second_checker'];
+        //$subdata[] = $row['client_name'] ?? '';
+        
+        $s_status = $row['status'] ?? '';
+        $bgcolor = '';
+        if ($s_status == '') {
+            $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-danger status_chk" rel="not_assigned">Not Assigned</span>';
+            $bgcolor = 'bg-danger';
+        } else if ($s_status == 'Completed') {
+            $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-success status_chk" rel="completed">Completed</span>';
+            $bgcolor = 'bg-success';
+        } else if ($s_status == 'In progress') {
+            $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-info status_chk" style="font-size: 11.5px;" rel="in_progress">In Progress</span>';
+            $bgcolor = 'bg-info';
+        } else if ($s_status == 'Under review') {
+            $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="under_review">Under Review</span>';
+            $bgcolor = 'bg-warning';
+        } else if (in_array($s_status, ['Cancelled', 'CancelledAcc', 'CancelledCust'])) {
+            $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-default status_chk" rel="cancelled">Cancelled</span>';
+            $bgcolor = 'bg-default';
+        } else if ($s_status == 'On hold') {
+            $study_status = '<span id="status_val_' . $i . '" class="btn btn-xs btn-warning status_chk" rel="on_hold">On Hold</span>';
+            $bgcolor = 'bg-warning';
+        } else if ($s_status == 'Not Assigned') {
+            $study_status = '<span id="status_val_' . $i . '" class="btn btn-danger btn-sm px-2 py-1" style="font-size: 10px;" rel="' . str_replace(' ', '_', strtolower($s_status)) . '">Not Assigned</span>';
+            $bgcolor = 'table-danger';
+        } else {
+            $study_status = ucwords($s_status);
+        }
+
+        $subdata[] = $study_status;
+
+       $lower_status = strtolower(trim($s_status));
+
+        if ($lower_status == 'not assigned') {
+            $actData = '<a href="' . SITE_URL . '/analyst/analyst_dicom_details_open?view=' . $studies_id . '" class="btn btn-success btn-xs">Assign To Me</a>';
+        } elseif ($lower_status == 'completed') {
+            $actData = '<a href="' . SITE_URL . '/analyst/analyst_dicom_details_my?view=' . $studies_id . '" class="btn btn-primary btn-xs">Edit</a>';
+        } else {
+            $actData = '<a href="' . SITE_URL . '/analyst/analyst_dicom_details_my?view=' . $studies_id . '" class="btn btn-primary btn-xs">Edit</a>';
+        }
+
+
+        $actData .= '<script>$("#status_val_' . $i . '").closest("tr").addClass("' . $bgcolor . '"); $("#status_val_' . $i . '").closest("td").attr("display","none");</script>';
+
+        $subdata[] = $actData;
+        $data[] = $subdata;
+        $i++;
+    }
+
+    $json_data = array(
+        "draw" => intval($request['draw']),
+        "recordsTotal" => intval($totalData),
+        "recordsFiltered" => intval($totalFilter),
+        "data" => $data
+    );
+
+    echo json_encode($json_data);
+    die;
+}
+
+
     public function stat_report_csv() {
         $con = $this->getConnection();
 
@@ -5942,105 +6189,147 @@ Assigned')) . '">Not Assigned</span>';
     }
 
     public function export_all_studies() {
+    ini_set('memory_limit', '1024M'); // or '2G' if needed
 
-        error_reporting(0);
-        ini_set('display_errors', 0);
-        ini_set('memory_limit', '2560M');
-        ini_set('max_execution_time', 0);
+    $con = $this->getConnection();
 
-        $con = $this->getConnection();
-        $conditions = [];
+    // Setup headers for Excel file
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment;filename="All_Studies_' . date("Y-m-d") . '.xlsx"');
+    header('Cache-Control: max-age=0');
 
-        // Apply filters
-        if (!empty($_POST['days'])) {
-            $days = intval($_POST['days']);
-            $conditions[] = "created_at >= DATE_SUB(NOW(), INTERVAL $days DAY)";
-        }
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
 
-        if (!empty($_POST['assignee'])) {
-            $assignee = intval($_POST['assignee']);
-            $conditions[] = "analyst_id = $assignee";
-        }
+    // Headers
+     $headers = [
+        'Created At', 'Accession', 'Patient Name', 'MRN', 'Comment/Description',
+        'Client Site', 'Client Name', 'Actual TAT', 'Time Remaining',
+        'Assignee', 'Second Checker', 'Status'
+    ];
+    $sheet->fromArray($headers, NULL, 'A1');
 
-        if (!empty($_POST['second_check'])) {
-            $check = $_POST['second_check'];
-            if ($check == '1') {
-                $conditions[] = "second_analyst_id IS NOT NULL AND second_analyst_id != ''";
-            } elseif ($check == '2') {
-                $conditions[] = "(second_analyst_id IS NULL OR second_analyst_id = '')";
-            }
-        }
+    $second_check = $_POST['second_check'] ?? '';
+    $selectedDays = $_POST['selectedDays'] ?? '';
+    $assignee = $_POST['assignee'] ?? '';
+    $secondAssignee = $_POST['secondAssignee'] ?? '';
+    $status = $_POST['status'] ?? '';
+    $search_str = trim($_POST['search']['value'] ?? '');
 
-        if (!empty($_POST['second_assignee'])) {
-            $second = intval($_POST['second_assignee']);
-            $conditions[] = "second_analyst_id = $second";
-        }
+    $sql = "SELECT 
+        studies.created_at, studies.accession, studies.patient_name, studies.mrn, studies.comment,
+        dicom_webhook_details.webhook_description,
+        studies.client_site_name, t3.client_name, studies.actual_tat,
+        IFNULL(t5.user_name, 'Not Assigned') AS assignee_name,
+        IFNULL(t7.user_name, 'Not Reviewed') AS second_checker,
+        t6.status
+    FROM studies 
+    LEFT JOIN dicom_webhook_details ON studies.dicom_webhook_ids = dicom_webhook_details.dicom_webhook_id 
+    LEFT JOIN client_details t2 ON studies.client_account_ids = t2.client_account_id 
+    LEFT JOIN clients t3 ON t2.client_ids = t3.client_id 
+    LEFT JOIN users t5 ON studies.analyst_id = t5.user_id 
+    LEFT JOIN users t7 ON studies.second_analyst_id = t7.user_id 
+    LEFT JOIN analysis_status t6 ON studies.status_ids = t6.status_id 
+    WHERE 1=1";
 
-        if (!empty($_POST['status'])) {
-            $status = intval($_POST['status']);
-            $conditions[] = "status_ids = $status";
-        }
-
-        $sql = "SELECT * FROM studies";
-        if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(" AND ", $conditions);
-        }
-        $sql .= " ORDER BY studies_id DESC";
-
-        $query = mysqli_query($con, $sql);
-        if (!$query) {
-            die("Query Failed: " . mysqli_error($con));
-        }
-
-        // Create new Spreadsheet object
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-
-        // Set column headers
-        $sheet->fromArray([
-            "Received Date", "Accession", "Patient Name", "MRN", "TAT",
-            "Customer", "Assignee", "Second Check", "Site", "Description", "Status"
-                ], NULL, 'A1');
-
-        // Populate data
-        $rowNumber = 2; // Start from second row after headers
-        while ($row = mysqli_fetch_array($query)) {
-            $receivedDate = !empty($row['created_at']) ? date("m-d-Y", strtotime($row['created_at'])) : '';
-            $accession = $row['accession'] ?? '';
-            $patientName = $row['patient_name'] ?? '';
-            $mrn = $row['mrn'] ?? '';
-            $tat = $row['actual_tat'] ?? '';
-            $description = $row['comment'] ?? '';
-
-            $clientId = $row['client_account_ids'] ?? null;
-            $clientDetails = $clientId ? $this->Admindb->get_client_details_by_id($clientId) : [];
-            $customer = $clientDetails['client_name'] ?? '';
-
-            $assignee = $this->Admindb->get_user_by_id($row['analyst_id'] ?? '') ?? '';
-            $secondCheck = $this->Admindb->get_user_by_id($row['second_analyst_id'] ?? '') ?? '';
-            $site = $clientId ? $this->Admindb->get_user_sitecode($clientId) : '';
-
-            $statusId = $row['status_ids'] ?? '';
-            $status = !empty($statusId) ? $this->Admindb->get_status_details($statusId) : 'NOT STARTED';
-
-            $sheet->fromArray([
-                $receivedDate, $accession, $patientName, $mrn, $tat,
-                $customer, $assignee, $secondCheck, $site, $description, $status
-                    ], NULL, 'A' . $rowNumber);
-            $rowNumber++;
-        }
-
-        // Set headers for Excel download
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="all_studies.xlsx"');
-        header('Cache-Control: max-age=0');
-
-        // Write to output
-        $writer = new Xlsx($spreadsheet);
-        $writer->save('php://output');
-        exit;
+    if (!empty($selectedDays)) {
+        $sql .= " AND TIMESTAMPDIFF(DAY, studies.created_at, NOW()) < '" . mysqli_real_escape_string($con, $selectedDays) . "'";
     }
 
+    if (!empty($assignee)) {
+        $sql .= " AND studies.analyst_id = '" . mysqli_real_escape_string($con, $assignee) . "'";
+    }
+
+    if (!empty($second_check)) {
+        if ($second_check == 1) {
+            $sql .= " AND studies.second_analyst_id != '' ";
+            if (!empty($secondAssignee)) {
+                $sql .= " AND studies.second_analyst_id = '" . mysqli_real_escape_string($con, $secondAssignee) . "'";
+            }
+        } else {
+            $sql .= " AND (studies.second_analyst_id = '' OR studies.second_analyst_id IS NULL)";
+        }
+    }
+
+    if (!empty($status)) {
+        $sql .= " AND studies.status_ids = '" . mysqli_real_escape_string($con, $status) . "'";
+    }
+
+    if (!empty($search_str)) {
+        $search_str = mysqli_real_escape_string($con, $search_str);
+        $sql .= " AND (studies.accession LIKE '%$search_str%' 
+            OR studies.mrn LIKE '%$search_str%' 
+            OR studies.patient_name LIKE '%$search_str%' 
+            OR dicom_webhook_details.webhook_customer LIKE '%$search_str%' 
+            OR dicom_webhook_details.webhook_description LIKE '%$search_str%' 
+            OR studies.comment LIKE '%$search_str%' 
+            OR studies.client_site_name LIKE '%$search_str%' 
+            OR t3.client_name LIKE '%$search_str%' 
+            OR t5.user_name LIKE '%$search_str%' 
+            OR t7.user_name LIKE '%$search_str%' 
+            OR t6.status LIKE '%$search_str%')";
+    }
+
+    $sql .= " ORDER BY 
+      CASE 
+        WHEN t6.status = 'Not Assigned' THEN 1
+        WHEN t6.status = 'On hold' THEN 2
+        WHEN t6.status = 'In progress' THEN 3
+        WHEN t6.status = 'Completed' THEN 4
+        ELSE 5
+      END,
+      studies.created_at DESC";
+
+    $query = mysqli_query($con, $sql);
+
+    if (!$query) {
+        die("SQL Error: " . mysqli_error($con));
+    }
+
+    $rowIndex = 2;
+
+    while ($row = mysqli_fetch_assoc($query)) {
+        $created_at = !empty($row['created_at']) ? date("m-d-Y h:i A", strtotime($row['created_at'])) : '';
+        $actual_tat = is_numeric($row['actual_tat']) ? (int)$row['actual_tat'] : 0;
+
+        $created_time = new DateTime($row['created_at']);
+        $due_time = clone $created_time;
+        $due_time->modify("+$actual_tat minutes");
+        $now = new DateTime();
+
+        $remaining_minutes = ($due_time->getTimestamp() - $now->getTimestamp()) / 60;
+        $interval = $now->diff($due_time);
+
+        $remaining_text = $remaining_minutes > 0
+            ? $interval->format('%h hrs %i min') . ' remaining'
+            : 'Overdue by ' . $interval->format('%h hrs %i min');
+
+        $sheet->fromArray([
+            $created_at,
+            $row['accession'],
+            $row['patient_name'],
+            $row['mrn'],
+            $row['comment'] ?: $row['webhook_description'],
+            $row['client_site_name'],
+            $row['client_name'],
+            $row['actual_tat'],
+            $remaining_text,
+            $row['assignee_name'],
+            $row['second_checker'],
+            $row['status']
+        ], NULL, 'A' . $rowIndex++);
+
+        if ($rowIndex > 100000) break; // Optional safeguard
+    }
+
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment;filename="All_Studies.xlsx"');
+    header('Cache-Control: max-age=0');
+
+    $writer = new Xlsx($spreadsheet);
+    $writer->save('php://output');
+    exit;
+}
     public function update_tat_value() {
         $form_data = $_POST;
         $success = 0;
@@ -6055,7 +6344,7 @@ Assigned')) . '">Not Assigned</span>';
         echo json_encode(array("success" => $success, "msg" => $msg));
     }
 
-    public function export_allstudies_info_excel() {
+    /* public function export_allstudies_info_excel() {
 
         ini_set('memory_limit', '-1');
         ini_set('max_execution_time', '0');
@@ -6248,6 +6537,387 @@ Assigned')) . '">Not Assigned</span>';
         ob_end_clean();
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="all_studies.xlsx"');
+        header('Content-Length: ' . filesize($filePath));
+        readfile($filePath);
+        unlink($filePath);
+        exit;
+    } */
+	
+    public function export_allstudies_info_excel()
+    {
+        ini_set('memory_limit', '-1');
+        ini_set('max_execution_time', '0');
+
+        if (!isset($_SESSION['user']->user_id)) {
+            header('Content-Type: application/json');
+            echo json_encode(["error" => "Unauthorized access"]);
+            exit;
+        }
+
+        $con = $this->getConnection();
+
+        // Collect and sanitize inputs
+        $second_check = $_POST['second_check'] ?? '';
+        $selectedDays = $_POST['days'] ?? '';
+        $assignee = $_POST['assignee'] ?? '';
+        $secondAssignee = $_POST['second_assignee'] ?? '';
+        $status = $_POST['status'] ?? '';
+        $search_str = trim($_POST['searchValue'] ?? '');
+        $search_str_escaped = mysqli_real_escape_string($con, $search_str);
+
+        // Main query with joins
+        $sql = "SELECT studies.studies_id, studies.accession, studies.mrn, studies.patient_name, studies.analyst_id, studies.second_analyst_id, 
+                   studies.dicom_webhook_ids, studies.status_ids, studies.created_at, studies.actual_tat, studies.client_account_ids,
+                   dicom_webhook_details.dicom_webhook_id, dicom_webhook_details.webhook_customer, dicom_webhook_details.webhook_description,
+                   studies.client_site_name, t4.user_name, t5.user_name AS assignee_name, t6.status, t7.user_name AS second_checker,
+                   t3.client_name, t2.contract_tat, t2.contract_tat_unit, t2.contract_tat_minutes 
+            FROM studies 
+            LEFT JOIN dicom_webhook_details ON (studies.dicom_webhook_ids = dicom_webhook_details.dicom_webhook_id)
+            LEFT JOIN client_details t2 ON (studies.client_account_ids = t2.client_account_id)
+            LEFT JOIN clients t3 ON (t2.client_ids = t3.client_id)
+            LEFT JOIN users t4 ON (t2.user_ids = t4.user_id)
+            LEFT JOIN users t5 ON (studies.analyst_id = t5.user_id)
+            LEFT JOIN analysis_status t6 ON (studies.status_ids = t6.status_id)
+            LEFT JOIN users t7 ON (studies.second_analyst_id = t7.user_id)
+            WHERE 1=1";
+
+        // Filters
+        if (!empty($selectedDays)) {
+            $sql .= " AND TIMESTAMPDIFF(DAY, studies.created_at, NOW()) < '" . intval($selectedDays) . "' ";
+        }
+
+        if (!empty($assignee)) {
+            $sql .= " AND studies.analyst_id = '" . intval($assignee) . "' ";
+        }
+
+        if (!empty($second_check)) {
+            if ($second_check == 1) {
+                $sql .= " AND studies.second_analyst_id != '' ";
+                if (!empty($secondAssignee)) {
+                    $sql .= " AND studies.second_analyst_id = '" . intval($secondAssignee) . "' ";
+                }
+            } else {
+                $sql .= " AND (studies.second_analyst_id = '' OR studies.second_analyst_id IS NULL)";
+            }
+        }
+
+        if (!empty($status)) {
+            $sql .= " AND studies.status_ids = '" . intval($status) . "' ";
+        }
+
+        // Search filter
+        if (!empty($search_str_escaped)) {
+            $sql .= " AND (
+            studies.accession LIKE '%$search_str_escaped%' OR
+            studies.mrn LIKE '%$search_str_escaped%' OR
+            studies.patient_name LIKE '%$search_str_escaped%' OR
+            dicom_webhook_details.webhook_customer LIKE '%$search_str_escaped%' OR
+            t5.user_name LIKE '%$search_str_escaped%' OR
+            t7.user_name LIKE '%$search_str_escaped%' OR
+            t3.client_name LIKE '%$search_str_escaped%' OR
+            studies.client_site_name LIKE '%$search_str_escaped%' OR
+            t6.status LIKE '%$search_str_escaped%'
+        )";
+        }
+
+        $sql .= " ORDER BY studies.studies_id DESC";
+
+        $query = mysqli_query($con, $sql);
+
+        if (!$query) {
+            echo json_encode(["error" => "Database error: " . mysqli_error($con)]);
+            exit;
+        }
+
+        // Setup PhpSpreadsheet
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $spreadsheet->getProperties()
+            ->setCreator('Dicon')
+            ->setLastModifiedBy('Dicon')
+            ->setTitle('All Studies')
+            ->setDescription('Exported study data.');
+
+        $headers = ["SL No", "Received Date", "Accession", "Patient Name", "MRN", "Default TAT", "Webhook Customer", "Assignee", "Second Check", "Customer", "Site", "Description", "Status"];
+        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+        $mergeRange = "A2:{$lastColumn}2";
+
+        $sheet->mergeCells($mergeRange);
+        $sheet->setCellValue('A2', 'All Studies');
+        $sheet->getStyle('A2')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 17],
+            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFB0E0E6'],
+            ],
+        ]);
+
+        $sheet->fromArray([$headers], NULL, 'A3');
+        $sheet->getStyle("A3:{$lastColumn}3")->applyFromArray([
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFADD8E6'],
+            ],
+        ]);
+
+        foreach (range('A', $lastColumn) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Populate rows
+        $rowNumber = 4;
+        $sl = 1;
+        while ($row = mysqli_fetch_assoc($query)) {
+            $receivedDate = !empty($row['created_at']) ? date("m-d-Y h:i A", strtotime($row['created_at'])) : '';
+            $defaultTat = !empty($row['actual_tat']) ? $row['actual_tat'] : trim($row['contract_tat'] . ' ' . $row['contract_tat_unit']);
+
+            $dataRow = [
+                $sl++,
+                $receivedDate,
+                $row['accession'],
+                $row['patient_name'],
+                $row['mrn'],
+                $defaultTat,
+                $row['webhook_customer'],
+                $row['assignee_name'] ?? '',
+                $row['second_checker'] ?? '',
+                $row['client_name'] ?? '',
+                $row['client_site_name'] ?? '',
+                $row['webhook_description'],
+                $row['status'] ?? '',
+            ];
+
+            $sheet->fromArray([$dataRow], NULL, 'A' . $rowNumber++);
+        }
+
+        // Formatting alignment
+        $dataStartRow = 4;
+        $dataEndRow = $rowNumber - 1;
+
+        $sheet->getStyle("A{$dataStartRow}:A{$dataEndRow}")
+            ->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+
+        for ($col = 2; $col <= count($headers); $col++) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+            $sheet->getStyle("{$colLetter}{$dataStartRow}:{$colLetter}{$dataEndRow}")
+                ->getAlignment()
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+        }
+
+        // Output
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $filePath = dirname(__DIR__) . '/tmp/all_studies.xlsx';
+        $writer->save($filePath);
+
+        if (!file_exists($filePath)) {
+            die("Error: File not created.");
+        }
+
+        ob_end_clean();
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="all_studies.xlsx"');
+        header('Content-Length: ' . filesize($filePath));
+        readfile($filePath);
+        unlink($filePath);
+        exit;
+    }
+	
+	public function get_stat_info_excel()
+    {
+        ini_set('memory_limit', '-1');
+        ini_set('max_execution_time', '0');
+
+        if (!isset($_SESSION['user']->user_id)) {
+            header('Content-Type: application/json');
+            echo json_encode(["error" => "Unauthorized access"]);
+            exit;
+        }
+
+        $con = $this->getConnection();
+        $request = $_REQUEST;
+
+        $selectedDays = $_POST['selectedDays'] ?? '';
+        $assignee = $_POST['assignee'] ?? '';
+        $secondAssignee = $_POST['secondAssignee'] ?? '';
+        $status = $_POST['status'] ?? '';
+        $search_str = trim($_POST['searchValue'] ?? '');
+        $search_str_escaped = mysqli_real_escape_string($con, $search_str);
+
+        $sql = "SELECT studies.*, analyses_performed.analysis_performed_id, analyses_performed.studies_ids
+            FROM studies
+            JOIN analyses_performed ON studies.studies_id = analyses_performed.studies_ids
+            WHERE 1=1";
+
+        if (!empty($selectedDays)) {
+            $sql .= " AND TIMESTAMPDIFF(DAY, studies.created_at, NOW()) < '" . intval($selectedDays) . "' ";
+        }
+
+        if (!empty($assignee)) {
+            $sql .= " AND studies.analyst_id = '" . intval($assignee) . "' ";
+        }
+
+        if (!empty($secondAssignee)) {
+            $sql .= " AND studies.second_analyst_id = '" . intval($secondAssignee) . "' ";
+        }
+
+        if (!empty($status)) {
+            $sql .= " AND studies.status_ids = '" . intval($status) . "' ";
+        }
+
+        if (!empty($search_str_escaped)) {
+            $sql .= " AND (
+            studies.accession LIKE '%$search_str_escaped%' OR
+            studies.mrn LIKE '%$search_str_escaped%' OR
+            studies.patient_name LIKE '%$search_str_escaped%' OR
+            studies.client_site_name LIKE '%$search_str_escaped%'
+        )";
+        }
+
+        $sql .= " ORDER BY studies.studies_id DESC";
+
+        $query = mysqli_query($con, $sql);
+
+        if (!$query) {
+            echo json_encode(["error" => "Database error: " . mysqli_error($con)]);
+            exit;
+        }
+
+        // PhpSpreadsheet setup
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $spreadsheet->getProperties()
+            ->setCreator('Dicon')
+            ->setLastModifiedBy('Dicon')
+            ->setTitle('Stat Info Export')
+            ->setDescription('Exported statistics data.');
+
+        // Title row and formatting
+        $headers = [
+            "SL No",
+            "Received Date",
+            "Received Time",
+            "Accession",
+            "First Analyst",
+            "Second Analyst",
+            "Client Name",
+            "Client Number",
+            "Site Code",
+            "Analysis Name",
+            "Analysis Code",
+            "Analysis Number",
+            "Status",
+            "Completed Date",
+            "Completed Time"
+        ];
+
+        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+        $mergeRange = "A2:{$lastColumn}2";
+
+        $sheet->mergeCells($mergeRange);
+        $sheet->setCellValue('A2', 'Stat Report');
+        $sheet->getStyle('A2')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 17],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
+            ],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFB0E0E6'], // Light blue
+            ],
+        ]);
+
+        // Header row (A3)
+        $sheet->fromArray([$headers], NULL, 'A3');
+        $sheet->getStyle("A3:{$lastColumn}3")->applyFromArray([
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFADD8E6'], // Light blue for header
+            ],
+        ]);
+
+        foreach (range('A', $lastColumn) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $rowIndex = 4;
+        $sl = 1;
+
+        while ($row = mysqli_fetch_assoc($query)) {
+            $receivedDate = !empty($row['created_at']) ? date("m-d-Y", strtotime($row['created_at'])) : '';
+            $receivedTime = !empty($row['created_at']) ? date("h:i A", strtotime($row['created_at'])) : '';
+
+            $first_analyst = $this->Admindb->get_user_by_id($row['analyst_id']);
+            $second_analyst = $this->Admindb->get_user_by_id($row['second_analyst_id']);
+
+            $client_details = $this->Admindb->get_client_details_by_id($row['client_account_ids']);
+            $site_code = $this->Admindb->get_user_sitecode($row['client_account_ids']);
+
+            $analysis_details = $this->Admindb->get_analysis_details_by_id($row['analysis_performed_id']);
+            $analysis_name = $analysis_details['analysis_name'] ?? '';
+            $analysis_code = $analysis_details['analysis_code'] ?? '';
+            $analysis_number = $this->Admindb->get_analysis_number_by_id($analysis_details['analysis_id'] ?? '');
+
+            $status_val = $row['status_ids'];
+            $study_status = !empty($status_val) ? $this->Admindb->get_status_details($status_val) : 'NOT STARTED';
+
+            $completedDate = !empty($row['completed_time']) ? date("m-d-Y", strtotime($row['completed_time'])) : '';
+            $completedTime = !empty($row['completed_time']) ? date("h:i A", strtotime($row['completed_time'])) : '';
+
+            $dataRow = [
+                $sl++,
+                $receivedDate,
+                $receivedTime,
+                $row['accession'],
+                $first_analyst,
+                $second_analyst,
+                $client_details['client_name'] ?? '',
+                $client_details['client_number'] ?? '',
+                $site_code ?? '',
+                $analysis_name,
+                $analysis_code,
+                $analysis_number,
+                $study_status,
+                $completedDate,
+                $completedTime
+            ];
+
+            $sheet->fromArray([$dataRow], NULL, 'A' . $rowIndex++);
+        }
+
+        // Alignments
+        $dataStartRow = 4;
+        $dataEndRow = $rowIndex - 1;
+
+        $sheet->getStyle("A{$dataStartRow}:A{$dataEndRow}")
+            ->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+
+        for ($col = 2; $col <= count($headers); $col++) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+            $sheet->getStyle("{$colLetter}{$dataStartRow}:{$colLetter}{$dataEndRow}")
+                ->getAlignment()
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+        }
+
+        // Save and output
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $filePath = dirname(__DIR__) . '/tmp/stat_report.xlsx';
+        $writer->save($filePath);
+
+        if (!file_exists($filePath)) {
+            die("Error: Excel file not created.");
+        }
+
+        ob_end_clean();
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="stat_report.xlsx"');
         header('Content-Length: ' . filesize($filePath));
         readfile($filePath);
         unlink($filePath);

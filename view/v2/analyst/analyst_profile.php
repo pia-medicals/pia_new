@@ -85,7 +85,7 @@ if (isset($_SESSION['user'])) {
 
                             <div class="card-footer">
                                 <button type="submit" class="btn btn-primary" id="btnSubmit" name="btnSubmit">Save <i aria-hidden="true" class="fa fa-save"></i></button>
-                                <a href="<?= SITE_URL . '/customer_dashboard' ?>" class="btn btn-secondary float-right">Cancel <i aria-hidden="true" class="fa fa-redo"></i></a>
+                                <a href="<?= SITE_URL . '/analyst_dashboard' ?>" class="btn btn-secondary float-right">Cancel <i aria-hidden="true" class="fa fa-redo"></i></a>
                             </div>
                         </form>
                     </div>

@@ -145,7 +145,7 @@ switch ($_SESSION['user']->user_type_ids) {
 
                                     </div>
                                     <div class="admin_table mb-5">
-                                        <table class="admin admtbl table table-bordered">
+                                        <table id="analyses_rates_table" class="admin admtbl table table-bordered">
                                             <thead>
                                                 <tr>
                                                     <th>Item No.</th>
@@ -153,6 +153,7 @@ switch ($_SESSION['user']->user_type_ids) {
                                                     <th class="w-25">Description</th>
                                                     <th class="w-25">Category</th>
                                                     <th>Price</th>
+                                                    <th>Status</th>
                                                     <th>Action</th>
                                                 </tr>
                                             </thead>
@@ -200,6 +201,7 @@ switch ($_SESSION['user']->user_type_ids) {
         const $selAnalyses = $('#sel_analyses');
         const $selCat = $('#sel_cat');
         const $clientId = $('#cid').val();
+        let dataTable;
 
         function loadAnalysesTable() {
             const selection = $selAnalyses.val();
@@ -209,7 +211,6 @@ switch ($_SESSION['user']->user_type_ids) {
                 $.ajax({
                     url: "/analyses_list",
                     type: "POST",
-                    // data: { selection: selection, client_id: $clientId },
                     data: {
                         selection: selection,
                         selcat: selcateg,
@@ -218,42 +219,46 @@ switch ($_SESSION['user']->user_type_ids) {
                     dataType: "json",
                     success: function(response) {
                         let rows = '';
+
                         if (response.data && response.data.length > 0) {
                             $.each(response.data, function(index, row) {
-                                // rows += `
-                                // <tr data-id="${row[1]}">
-                                //     <td>${row[0]}</td>
-                                //     <td class="analysis-name">${row[2]}</td>
-                                //     <td class="analysis-desc">${row[3]}</td>
-                                //     <td class="analysis-price">${row[4]}</td>
-                                //     <td class="analysis-number">${row[5]}</td>
-                                //     <td>
-                                //         <button type="button" class="btn btn-info btn-xs mb-1 edit-btn"><i class="fas fa-edit"></i> Edit</button>
-                                //         ${row[7] == '0' ? `<button type="button" class="btn btn-success btn-xs mb-1 activate-btn" data-act-id="${row['6']}"><i class="fas fa-plane"></i> Activate</button>` : ''}
-                                //         ${row[7] == '1' ? `<button type="button" class="btn btn-warning btn-xs mb-1 inactivate-btn" data-inact-id="${row['6']}"><i class="fas fa-plane-slash"></i> Inactivate</button>` : ''}
-                                //         <button type="button" class="btn btn-success btn-xs save-btn mb-1 d-none" data-price-id="${row['6']}">Save</button>
-                                //         <button type="button" class="btn btn-secondary btn-xs mb-1 cancel-btn d-none">Cancel</button>
-                                //     </td>
-                                // </tr>`;
                                 rows += `<tr data-id="${row[1]}" data-cat-id="${row[9]}">
-                                    <td class="analysis-number">${row[6]}</td>
-                                    <td class="analysis-name">${row[2]}</td>
-                                    <td class="analysis-desc">${(row[3] === null || row[3] === '' || row[3] === '0') ? row[2] : row[3]}</td>
-                                    <td class="analysis-categ">${row[4]}</td>
-                                    <td class="analysis-price">${row[5]}</td>
-                                    <td>
-                                        <button type="button" class="btn btn-info btn-xs mb-1 edit-btn"><i class="fas fa-edit"></i> Edit</button>
-                                        ${row[8] == '0' ? `<button type="button" class="btn btn-success btn-xs mb-1 activate-btn" data-act-id="${row['7']}"><i class="fas fa-plane"></i> Activate</button>` : ''}
-                                        ${row[8] == '1' ? `<button type="button" class="btn btn-warning btn-xs mb-1 inactivate-btn" data-inact-id="${row['7']}"><i class="fas fa-plane-slash"></i> Inactivate</button>` : ''}
-                                        <button type="button" class="btn btn-success btn-xs save-btn mb-1 d-none" data-price-id="${row['7']}">Save</button>
-                                        <button type="button" class="btn btn-secondary btn-xs mb-1 cancel-btn d-none">Cancel</button>
-                                    </td>
-                                </tr>`;
+                                <td class="analysis-number">${row[6]}</td>
+                                <td class="analysis-name">${row[2]}</td>
+                                <td class="analysis-desc">${(row[3] === null || row[3] === '' || row[3] === '0') ? row[2] : row[3]}</td>
+                                <td class="analysis-categ">${row[4]}</td>
+                                <td class="analysis-price">${row[5]}</td>
+                                <td class="analysis-status">${(Number(row[8]) === 1) ? '<span class="spanstatus badge badge-secondary">Active</span>' : '<span class="spanstatus badge badge-danger">Inactive</span>'}</td>
+                                <td>
+                                    <button type="button" class="btn btn-info btn-xs mb-1 edit-btn"><i class="fas fa-edit"></i> Edit</button>
+                                    ${row[8] == '0' ? `<button type="button" class="btn btn-success btn-xs mb-1 activate-btn" data-act-id="${row['7']}"><i class="fas fa-plane"></i> Activate</button>` : ''}
+                                    ${row[8] == '1' ? `<button type="button" class="btn btn-warning btn-xs mb-1 inactivate-btn" data-inact-id="${row['7']}"><i class="fas fa-plane-slash"></i> Inactivate</button>` : ''}
+                                    <button type="button" class="btn btn-success btn-xs save-btn mb-1 d-none" data-price-id="${row['7']}">Save</button>
+                                    <button type="button" class="btn btn-secondary btn-xs mb-1 cancel-btn d-none">Cancel</button>
+                                </td>
+                            </tr>`;
                             });
                         } else {
                             rows = '<tr><td colspan="6" class="text-center">No data available</td></tr>';
                         }
+
+                        // If table is already initialized, destroy it
+                        if ($.fn.DataTable.isDataTable('#analyses_rates_table')) {
+                            $('#analyses_rates_table').DataTable().clear().destroy();
+                        }
+
+                        // Update tbody and re-initialize
                         $analysisTbody.html(rows);
+
+                        dataTable = $('#analyses_rates_table').DataTable({
+                            responsive: true,
+                            autoWidth: false,
+                            ordering: true,
+                            columnDefs: [{
+                                targets: -1,
+                                orderable: false
+                            }]
+                        });
                     },
                     error: function(xhr, status, error) {
                         console.error("AJAX Error:", status, error);
@@ -262,9 +267,11 @@ switch ($_SESSION['user']->user_type_ids) {
             }
         }
 
-        $selAnalyses.change(loadAnalysesTable);
-        $selCat.change(loadAnalysesTable);
+        // Call when either filter changes
+        $selAnalyses.on('change', loadAnalysesTable);
+        $selCat.on('change', loadAnalysesTable);
 
+        // Initial load
         loadAnalysesTable();
 
         // Edit
@@ -472,6 +479,8 @@ switch ($_SESSION['user']->user_type_ids) {
                         $row.find('.analysis-price').text(updatedData.price);
                         $row.find('.analysis-number').text(updatedData.anumber);
 
+                        $row.find('.analysis-status').html('<span class="spanstatus badge badge-secondary">Active</span>');
+
                         // Replace the buttons
                         let btns = `
                     <button type="button" class="btn btn-info btn-xs mb-1 edit-btn"><i class="fas fa-edit"></i> Edit</button>
@@ -552,6 +561,8 @@ switch ($_SESSION['user']->user_type_ids) {
                         $row.find('.analysis-desc').text(updatedData.description);
                         $row.find('.analysis-price').text(updatedData.price);
                         $row.find('.analysis-number').text(updatedData.anumber);
+
+                        $row.find('.analysis-status').html('<span class="spanstatus badge badge-danger">Inactive</span>');
 
                         // Replace the buttons
                         let btns = `

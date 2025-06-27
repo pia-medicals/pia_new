@@ -233,20 +233,6 @@ class Router extends App
         });
         //////////////////////////////////////////////////////////////////////////////////////////////////
 
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-        //User Setup
-        $this->router->respond(array('GET', 'POST'), '/get_organizations', function ($request) {
-            $this->controller('Admintat', 'get_organizations');
-        });
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-        //Client Setup
-        $this->router->respond(array('GET', 'POST'), '/save_new_customer_details', function ($request) {
-            $this->controller('Admintat', 'save_new_customer_details');
-        });
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-
         ///////////////////////////////////////////////////////////////////////////////////////////////////
         // Analyst Login
         $this->router->respond(array('GET', 'POST'), '/analyst_login', function ($request) {
@@ -277,10 +263,6 @@ class Router extends App
             session_destroy();
             //$this->redirect('analyst_login');
             $this->redirect('login');
-        });
-
-        $this->router->respond(array('GET', 'POST'), '/analyst_profile', function () {
-        $this->controller('Analyst', 'profile');
         });
         ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -487,13 +469,6 @@ class Router extends App
             $data = ["page_title" => "Edit tat"];
             $this->view('v2/layout/header', $data);
             $this->controller('ExtraController', 'edit_tat');
-            $this->view('v2/layout/footer');
-        });
-
-          $this->router->respond(array('GET', 'POST'), '/view_details', function () {
-            $data = ["page_title" => "View Details"];
-            $this->view('v2/layout/header', $data);
-            $this->controller('ExtraController', 'viewdata');
             $this->view('v2/layout/footer');
         });
 

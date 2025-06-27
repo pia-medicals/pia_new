@@ -71,7 +71,7 @@ $id = base64_decode($id);
 
                             <div class="card-footer">
                                 <button type="submit" class="btn btn-primary" id="submit" name="submit">Save <i aria-hidden="true" class="fa fa-save"></i></button>
-                                <a href="<?= SITE_URL . '/admin/dicom_details_all' ?>" class="btn btn-secondary float-right">Back</a>
+                                <a href="<?= SITE_URL . '/admin/dicom_details_all' ?>" class="btn btn-secondary float-right">Cancel <i aria-hidden="true" class="fa fa-redo"></i></a>
                             </div>
                         </form>
                     </div>

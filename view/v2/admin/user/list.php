@@ -59,6 +59,7 @@ switch ($_SESSION['user']->user_type_ids) {
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>User Type</th>
+                                        <th>Organization</th>
                                         <th>Created</th>
                                         <th>Status</th>
                                         <th>Action</th>
@@ -69,6 +70,7 @@ switch ($_SESSION['user']->user_type_ids) {
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>User Type</th>
+                                        <th>Organization</th>
                                         <th>Created</th>
                                         <th>Status</th>
                                         <th>Action</th>
@@ -97,7 +99,7 @@ switch ($_SESSION['user']->user_type_ids) {
     $(document).ready(function() {
         var dt = $('#dataTbl').DataTable({
             "order": [
-                [5, "desc"]
+                [4, "desc"]
             ],
             "processing": true,
             "serverSide": true,

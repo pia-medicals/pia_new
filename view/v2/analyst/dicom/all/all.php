@@ -1,4 +1,6 @@
 
+
+
 <style type="text/css">
     .green-row {
         background-color: green !important;
@@ -188,15 +190,16 @@
 
                                         <th>Patient Name</th>
                                         <th>MRN</th>
-                                        <th>Default TAT</th>
-
-                                        <th>Webhook Customer</th>
-                                        <th>Assignee</th>
-
-                                        <th>Second Check</th>
-                                        <th>Client</th>
-                                        <th>Site</th>
                                         <th>Description</th>
+
+                                        <th>Institution</th>
+                                        <th>Client</th>
+                                        
+
+                                        <th>TAT(Min)</th>
+                                        <th>Time Remaining(Hrs)</th>
+                                        <th>Assignee</th>
+                                        <th>Second Check</th>
                                         <th>Status</th>
 
                                         <th>Action</th>
@@ -210,15 +213,15 @@
 
                                         <th>Patient Name</th>
                                         <th>MRN</th>
-                                        <th>Default TAT</th>
-
-                                        <th>Webhook Customer</th>
-                                        <th>Assignee</th>
-
-                                        <th>Second Check</th>
-                                        <th>Client</th>
-                                        <th>Site</th>
                                         <th>Description</th>
+
+                                        <th>Institution</th>
+                                        <th>Client</th>
+                                        <th>TAT(Min)</th>
+
+                                        <th>Time Remaining(Hrs)</th>
+                                        <th>Assignee</th>
+                                        <th>Second Check</th>
                                         <th>Status</th>
 
                                         <th>Action</th>
@@ -239,48 +242,209 @@
         </div>
         <!-- /.container-fluid -->
     </section>
-    <!-- /.content -->
+    
+   <!-- TAT Edit Modal -->
+<div id="tatEditModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <form id="tatEditForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit TAT</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editStudyId" name="study_id">
+        <div class="mb-3">
+          <label for="tatValue" class="form-label">TAT</label>
+          <input type="number" id="tatValue" name="tat_value" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label for="tatUnit" class="form-label">Unit</label>
+          <select id="tatUnit" class="form-select">
+            <option value="minutes">Minutes</option>
+            <option value="hours">Hours</option>
+            <option value="days">Days</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Update</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Client Modal -->
+<div id="editClientModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <form id="editClientForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Change Client</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modalStudyId" name="study_id">
+        <div class="mb-3">
+          <label for="modalClientSelect" class="form-label">Select Client</label>
+          <select id="modalClientSelect" name="client_account_id" class="form-select" required>
+            <!-- Options populated from PHP -->
+            <?php foreach ($clients as $client): ?>
+              <option value="<?= $client['client_account_id'] ?>"><?= $client['client_name'] ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Update</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
 </div>
 
 <script>
-    $(document).ready(function () {
-        var dt = $('#dataTbl').DataTable({
-            "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],  // Updated to include 10, 25, 50, 100 options
-            "pageLength": 10,  // Sets the default to 10 entries per page
-            "order": [[0, "desc"]],
-            "processing": true,
-            "serverSide": true,
-            "autoWidth": false,
-            "ajax": {
-                url: "/ajaxV3/get_studies_info",
-                type: "post",
-                data: function (d) {
-                    d.selectedDays = $('#days').val();
-                    d.assignee = $('#assignee').val();
-                    d.second_check = $("#second_check").val();
-                    d.secondAssignee = $('#second_assignee').val();
-                    d.status = $('#status').val();
-                }
-            },
-        });
-
-        $('#days, #assignee, #second_assignee, #status, #second_check').on('change', function () {
-            var second = $('#second_check').val();
-            if (second == '1') {
-                $("#second_assignee").show();
-            } else {
-                $("#second_assignee").hide();
+    
+$(document).ready(function () {
+    const dt = $('#dataTbl').DataTable({
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+        pageLength: 10,
+        order: [[0, "desc"]],
+        processing: true,
+        serverSide: true,
+        autoWidth: false,
+        ajax: {
+            url: "/ajaxV3/get_studies_info_analyst",
+            type: "post",
+            data: function (d) {
+                d.selectedDays = $('#days').val();
+                d.assignee = $('#assignee').val();
+                d.second_check = $('#second_check').val();
+                d.secondAssignee = $('#second_assignee').val();
+                d.status = $('#status').val();
             }
-            dt.ajax.reload();
-        });
+        }
+    });
 
-        $("#reset_filter").on('click', function () {
-            $('#second_check').val('');
-            $("#second_assignee").val('');
-            $('#days').val('');
-            $('#assignee').val('');
-            $('#status').val('');
-            dt.ajax.reload();
+    $('#days, #assignee, #second_assignee, #status, #second_check').on('change', function () {
+        const second = $('#second_check').val();
+        $('#second_assignee').toggle(second === '1');
+        dt.ajax.reload();
+    });
+
+    $('#reset_filter').on('click', function () {
+        $('#second_check, #second_assignee, #days, #assignee, #status').val('');
+        dt.ajax.reload();
+    });
+
+    // Edit TAT
+    $(document).on('click', '.editable-tat', function () {
+        const studyId = $(this).data('study-id');
+        const tatVal = $(this).data('tat');
+        const tatUnit = $(this).data('unit') || 'minutes';
+
+        $('#editStudyId').val(studyId);
+        $('#tatValue').val(tatVal);
+        $('#tatUnit').val(tatUnit);
+        $('#tatEditModal').modal('show');
+    });
+
+    $('#tatEditForm').on('submit', function (e) {
+        e.preventDefault();
+        const studyId = $('#editStudyId').val();
+        let tatVal = parseFloat($('#tatValue').val());
+        const tatUnit = $('#tatUnit').val();
+
+        if (tatUnit === 'hours') tatVal *= 60;
+        else if (tatUnit === 'days') tatVal *= 1440;
+
+        tatVal = Math.round(tatVal);
+
+        $.ajax({
+            url: '/analyst/update_tat',
+            type: 'POST',
+            data: { study_id: studyId, tat_value: tatVal },
+            success: function () {
+                $('#tatEditModal').modal('hide');
+
+                const rowIdx = dt.rows().indexes().filter(function (idx) {
+                    return $(dt.row(idx).node()).find('.editable-tat').data('study-id') == studyId;
+                })[0];
+
+                if (rowIdx !== undefined) {
+                    const updatedSpan = `<span class="editable-tat" data-study-id="${studyId}" data-tat="${tatVal}" data-unit="minutes" style="cursor:pointer;text-decoration:underline;color:#007bff;">${tatVal} minutes</span>`;
+                    const rowData = dt.row(rowIdx).data();
+                    rowData[7] = updatedSpan;
+                    dt.row(rowIdx).data(rowData).draw(false);
+                }
+
+                Swal.fire('Updated!', 'TAT updated successfully.', 'success');
+            },
+            error: function () {
+                Swal.fire('Error!', 'Failed to update TAT.', 'error');
+            }
         });
     });
+
+    // Edit Client
+    $(document).on('click', '.change-client-span', function () {
+        const studyId = $(this).data('study-id');
+        const clientAccountId = $(this).data('account-id');
+
+        $('#modalStudyId').val(studyId);
+        $('#modalClientSelect').val(clientAccountId);
+        $('#editClientModal').modal('show');
+    });
+
+    // Handle client update form
+   $('#editClientForm').on('submit', function (e) {
+    e.preventDefault();
+    const studyId = $('#modalStudyId').val();
+    const clientId = $('#modalClientSelect').val();
+
+    $.ajax({
+        url: '/analyst/update_client_assignment',
+        type: 'POST',
+        data: {
+            study_id: studyId,
+            client_account_id: clientId
+        },
+        success: function (response) {
+            try {
+                if (typeof response === 'string') {
+                    response = JSON.parse(response);
+                }
+
+                if (response.status === 'success') {
+                    $('#editClientModal').modal('hide');
+                    Swal.fire('Client Updated!', response.message || 'Client successfully updated.', 'success');
+                    dt.ajax.reload();
+                } else {
+                    Swal.fire('Error', response.message || 'Failed to update client.', 'error');
+                }
+            } catch (e) {
+                Swal.fire('Invalid JSON Response', `<pre>${e.message}</pre>`, 'error');
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error("Server returned:", xhr.responseText);
+            Swal.fire({
+                icon: 'error',
+                title: 'Server Error',
+                html: `<pre style="text-align:left;">${xhr.responseText.substring(0, 300)}</pre>`
+            });
+        }
+    });
+});
+
+});
+
 </script>
+

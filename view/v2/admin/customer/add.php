@@ -196,30 +196,6 @@ switch ($_SESSION['user']->user_type_ids) {
 
                                     </div>
 
-                                    
-                                    <div class="col-sm-4">
-                                        <div class="form-group">
-                                            <label>Password</label>
-                                            <div class="input-group">
-                                                <input type="password" id="password" required="" class="form-control" name="password" placeholder="Enter Password" maxlength="15">
-                                                <div class="input-group-append">
-                                                    <button class="btn btn-light border border-start-0" type="button" id="togglePassword">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <ul id="password-rules" class="list-unstyled mt-2 mb-0">
-                                                <p id="max-length-warning" style="display:none; color:#d9534f; font-weight:bold; margin-top:10px;">
-                                                    <i class="fas fa-exclamation-triangle"></i> Maximum 15 characters allowed
-                                                </p>
-                                                <li id="rule-minlength" class="text-danger"><i class="fas fa-times"></i> <em>At least 4 characters</em></li>
-                                                <li id="rule-uppercase" class="text-danger"><i class="fas fa-times"></i> <em>At least one uppercase letter (A–Z)</em></li>
-                                                <li id="rule-lowercase" class="text-danger"><i class="fas fa-times"></i> <em>At least one lowercase letter (a–z)</em></li>
-                                                <li id="rule-number" class="text-danger"><i class="fas fa-times"></i> <em>At least one number (0–9)</em></li>
-                                                <li id="rule-special" class="text-danger"><i class="fas fa-times"></i> <em>At least one special character (!@#$...)</em></li>
-                                            </ul>
-                                        </div>
-                                    </div>
                                 </div>
 
                                 <div class="card-footer d-flex justify-content-between align-items-center">
@@ -241,237 +217,9 @@ switch ($_SESSION['user']->user_type_ids) {
 </div>
 
 <script>
-    /*$.validator.addMethod("minLengthCheck", function(value, element) {
-        return value.length >= 4;
-    }, "Password must be at least 4 characters long.");
-
-    $.validator.addMethod("hasUppercase", function(value, element) {
-        return /[A-Z]/.test(value);
-    }, "Password must include at least one uppercase letter.");
-
-    $.validator.addMethod("hasLowercase", function(value, element) {
-        return /[a-z]/.test(value);
-    }, "Password must include at least one lowercase letter.");
-
-    $.validator.addMethod("hasNumber", function(value, element) {
-        return /[0-9]/.test(value);
-    }, "Password must include at least one number.");
-
-    $.validator.addMethod("hasSpecialChar", function(value, element) {
-        return /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value);
-    }, "Password must include at least one special character."); */
-
-
-    // $("#myForm").validate({
-    //     rules: {
-    //         client_name: {
-    //             required: true,
-    //             maxlength: 100
-    //         },
-    //         email: {
-    //             required: true,
-    //             email: true,
-    //             maxlength: 100
-    //         },
-    //         site_code: {
-    //             maxlength: 5
-    //         },
-    //         client_code: {
-    //             maxlength: 4,
-    //             digits: true
-    //         },
-    //         client_site_name: {
-    //             maxlength: 100
-    //         },
-    //         is_headquarters: {
-    //             required: true
-    //         },
-    //         address_line1: {
-    //             maxlength: 100
-    //         },
-    //         address_line2: {
-    //             maxlength: 50
-    //         },
-    //         city: {
-    //             maxlength: 50
-    //         },
-    //         state: {
-    //             maxlength: 50
-    //         },
-    //         zipcode: {
-    //             maxlength: 10
-    //         },
-    //         phone_number: {
-    //             maxlength: 15
-    //         },
-            /*password: {
-                required: true,
-                minLengthCheck: true,
-                hasUppercase: true,
-                hasLowercase: true,
-                hasNumber: true,
-                hasSpecialChar: true,
-                maxlength: 15
-            }*/
-        // },
-        /*messages: {
-            password: {
-                required: "Please enter a password.",
-                maxlength: "Password cannot be longer than 15 characters."
-            }
-        },
-        onkeyup: function (element, event) {
-            if (element.id === "password") {
-                $(element).valid();
-            } else {
-                // For other fields, you might want to keep the default behavior
-                $(element).valid();
-            }
-        }, */
-    //     submitHandler: function() {
-    //         save_customer_details();
-    //     }
-    // });
-
-    // function save_customer_details() {
-    //     $("#submit").prop("disabled", true).html('Please wait... <i class="fa fa-spinner fa-spin"></i>');
-    //     $.ajax({
-    //         type: "POST",
-    //         data: {
-    //             client_name: $("#client_name").val(),
-    //             email: $("#email").val(),
-    //             site_code: $("#site_code").val(),
-    //             client_code: $("#client_code").val(),
-    //             password: $("#password").val(),
-    //             client_site_name: $("#client_site_name").val(),
-    //             is_headquarters: $("#is_headquarters").val(),
-    //             address_line1: $("#address_line1").val(),
-    //             address_line2: $("#address_line2").val(),
-    //             city: $("#city").val(),
-    //             state: $("#state").val(),
-    //             zipcode: $("#zipcode").val(),
-    //             phone_number: $("#phone_number").val(),
-    //             contract_tat: $("#contract_tat").val()
-    //         },
-    //         url: "/ajaxV2/save_customer_details",
-    //         dataType: "json",
-    //         timeout: 60000,
-    //         success: function(response) {
-    //             if (response.success > 0) {
-    //                 $("#myForm")[0].reset();
-    //                 mug_alert_all('success', 'Success', response.msg);
-    //             } else {
-    //                 if (response.msg != '') {
-    //                     mug_alert_all('error', 'Error', response.msg);
-    //                 } else {
-    //                     mug_alert_all('error', 'Error', 'Something went wrong. Please try again later!!');
-    //                 }
-    //             }
-    //             $("#submit").prop("disabled", false).html('Save <i aria-hidden="true" class="fa fa-save"></i>');
-    //         },
-    //         error: function(jqXHR, textStatus) {
-    //             $("#submit").prop("disabled", false).html('Retry <i aria-hidden="true" class="fas fa-redo"></i>');
-    //         }
-    //     });
-    // }
-</script>
-
-<script>
     $(document).ready(function() {
 
-        $('#togglePassword').on('click', function() {
-            
-            const passwordField = $('#password');
-            
-            const passwordFieldType = passwordField.attr('type');
-            
-            const passwordToggleIcon = $(this).find('i');
-
-            
-            if (passwordFieldType === 'password') {
-                passwordField.attr('type', 'text');
-                passwordToggleIcon.removeClass('fa-eye').addClass('fa-eye-slash');
-            } else {
-                passwordField.attr('type', 'password');
-                passwordToggleIcon.removeClass('fa-eye-slash').addClass('fa-eye');
-            }
-        });
-
-        const passwordInput = $('#password');
         const form = $('#addUserFrm');
-        const cardBody = $('.card-body');
-        const passwordRules = $('#password-rules');
-
-        function validatePasswordRules(password) {
-            let rules = {
-                /* length: password.length >= 4, */
-                minlength: password.length >= 4,
-                /* maxlength: password.length <= 15, */
-                uppercase: /[A-Z]/.test(password),
-                lowercase: /[a-z]/.test(password),
-                number: /[0-9]/.test(password),
-                special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
-            };
-
-            $('#password-rules li').removeClass('text-success text-danger bold')
-                .find('i').removeClass('fa-check fa-times');
-
-            for (let rule in rules) {
-                let $li = $('#rule-' + rule);
-                if (rules[rule]) {
-                    $li.addClass('text-success');
-                    $li.find('i').addClass('fas fa-check');
-                } else {
-                    $li.addClass('text-danger bold');
-                    $li.find('i').addClass('fas fa-times');
-                }
-            }
-
-            return Object.values(rules).every(Boolean);
-        }
-
-        function resetPasswordRulesUI() {
-            $('#password-rules li')
-                .removeClass('text-success bold')
-                .addClass('text-danger')
-                .each(function() {
-                    $(this).find('i').removeClass('fa-check').addClass('fa-times');
-                });
-
-            passwordRules.removeClass('show').hide();
-            cardBody.addClass('card-collapsed');
-        }
-
-        passwordInput.on('focus', function() {
-            passwordRules.fadeIn(400, function() {
-                passwordRules.addClass('show');
-            });
-            cardBody.removeClass('card-collapsed');
-        });
-
-        passwordInput.on('keydown', function(e) {
-            const val = $(this).val();
-
-            // Allow control keys (backspace, arrows, delete, etc.)
-            const controlKeys = [8, 37, 38, 39, 40, 46];
-            if (val.length >= 15 && !controlKeys.includes(e.keyCode)) {
-                $('#max-length-warning').fadeIn(200);
-            } else {
-                $('#max-length-warning').fadeOut(200);
-            }
-        });
-
-        passwordInput.on('keyup', function() {
-            //validatePasswordRules($(this).val());
-
-            const password = $(this).val();
-            validatePasswordRules(password);
-
-            // Extra safety: hide warning if under limit
-            if (password.length < 15) {
-                $('#max-length-warning').fadeOut(200);
-            }
-        });
 
         $("#myForm").validate({
             rules: {
@@ -515,49 +263,12 @@ switch ($_SESSION['user']->user_type_ids) {
                 },
                 phone_number: {
                     maxlength: 15
-                },
-                password: {
-                    required: true,
-                }
-                /*password: {
-                    required: true,
-                    minLengthCheck: true,
-                    hasUppercase: true,
-                    hasLowercase: true,
-                    hasNumber: true,
-                    hasSpecialChar: true,
-                    maxlength: 15
-                }*/
-            },
-            /*messages: {
-                password: {
-                    required: "Please enter a password.",
-                    maxlength: "Password cannot be longer than 15 characters."
                 }
             },
-            onkeyup: function (element, event) {
-                if (element.id === "password") {
-                    $(element).valid();
-                } else {
-                    // For other fields, you might want to keep the default behavior
-                    $(element).valid();
-                }
-            }, */
-
             errorPlacement: function(error, element) {
-                if (element.attr("name") == "password") {
-                    error.appendTo(element.closest('.form-group'));
-                } else {
-                    error.insertAfter(element);
-                }
+                error.insertAfter(element);
             },
             submitHandler: function() {
-                const isValid = validatePasswordRules(passwordInput.val());
-                if (!isValid) {
-                    mug_alert_all('warning', 'Warning', 'Please ensure the password meets all the listed requirements.');
-                    passwordInput.focus();
-                    return false;
-                }
                 save_customer_details();
             }
         });
@@ -571,7 +282,6 @@ switch ($_SESSION['user']->user_type_ids) {
                     email: $("#email").val(),
                     site_code: $("#site_code").val(),
                     client_code: $("#client_code").val(),
-                    password: $("#password").val(),
                     client_site_name: $("#client_site_name").val(),
                     is_headquarters: $("#is_headquarters").val(),
                     address_line1: $("#address_line1").val(),
@@ -582,21 +292,16 @@ switch ($_SESSION['user']->user_type_ids) {
                     phone_number: $("#phone_number").val(),
                     contract_tat: $("#contract_tat").val()
                 },
-                url: "/ajaxV2/save_customer_details",
+                url: "/ajaxV2/save_new_customer_details",
                 dataType: "json",
                 timeout: 60000,
                 success: function(response) {
-                    
-
                     if (response.success == 1) {
                         $("#myForm")[0].reset();
-                        resetPasswordRulesUI();
                         mug_alert_all('success', 'Success', response.msg);
-                    }
-                    else if(response.success == 2) {
+                    } else if (response.success == 2) {
                         mug_alert_all('warning', 'Warning', response.msg);
-                    }
-                     else {
+                    } else {
                         if (response.msg != '') {
                             mug_alert_all('error', 'Error', response.msg);
                         } else {

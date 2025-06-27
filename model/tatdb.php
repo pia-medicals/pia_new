@@ -945,6 +945,9 @@ class tatdb extends Model
 
     public function get_active_clients()
     {
+	// Ensure the MySQL connection is set to UTF-8 encoding
+$this->mysqli->set_charset("utf8mb4");
+	
         $sql = "SELECT client_id, client_name FROM clients WHERE is_active = '1' AND is_deleted = '0'";
         $result = $this->mysqli->query($sql);
 
@@ -954,6 +957,8 @@ class tatdb extends Model
                 $data[] = $row;
             }
         }
+		
+		//print_r($data); die;
 
         return $data;
     }

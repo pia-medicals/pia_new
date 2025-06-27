@@ -31,7 +31,8 @@ class Analyst extends Controller {
 public function analyst_dicom_details_all() {
     $data['user'] = $this->user;
     $current_user_id = $this->user->user_id;
-
+    $data['clients'] = $this->Admindb->get_all_clients();
+    
     if (!empty($_SESSION['alert'])) {
         $data['alert'] = $_SESSION['alert'];
         unset($_SESSION['alert']);
@@ -147,6 +148,7 @@ public function profile()
     $this->view('v2/layout/analyst_footer', $data); 
 }
 
+//Made Changes here on 23-06-2025
 public function add_new_study() {
     $data['user'] = $this->user;
     $data['clients'] = $this->Admindb->get_all_clients();
@@ -175,9 +177,9 @@ public function add_new_study() {
                 'client_site_name' => $client_site_name,
                 'comment' => $comment,
                 'client_account_ids' => $client_account_ids,
-                'analyst_id' => $this->user->user_id,
+               // 'analyst_id' => $this->user->user_id,
                 'created_at' => date('Y-m-d H:i:s'),
-                'status_ids' => 3
+                'status_ids' => 9
             ];
 
             $result = $this->Admindb->insert_study($study);
@@ -195,6 +197,7 @@ public function add_new_study() {
     $this->view('v2/layout/side_menu/analyst_new_menu', $data);
     $this->view('v2/analyst/dicom/my/add_new_study', $data);
 }
+
 
 public function analyst_dicom_details_miscellaneous_billing() {
         $data['user'] = $this->user;
@@ -289,44 +292,46 @@ public function add_miscellaneous_billing() {
 }
 
 
-
-public function analyst_dicom_details_open()
-{
+//Made Changes Here On(23-06-2025)
+public function analyst_dicom_details_open() {
     $data['user'] = $this->user;
-    $current_user_id = $this->user->user_id; // ✅ get current user ID
+    $current_user_id = $this->user->user_id;
+     $data['clients'] = $this->Admindb->get_all_clients();
 
-    // Handle view action
     if (isset($_GET['view']) && is_numeric($_GET['view'])) {
         $studies_id = intval($_GET['view']);
-
-        // Fetch the study entry
-        $study = $this->Admindb->get_study_by_id($studies_id);
+        $study = $this->Admindb->assign_study_to_analyst($studies_id, $current_user_id);
+        
 
         if (!$study) {
             $this->add_alert('danger', "Study with ID $studies_id not found.");
-            $this->redirect('analyst/analyst_dicom_details_open');
+            $this->redirect('analyst/analyst_dicom_details_all');
         }
 
-        $data['edit'] = $study;
-        $data['sites'] = $this->Admindb->get_all_customers();
-
-        // ✅ Pass current user ID to avoid error
-        $data['asignee'] = $this->Admindb->get_all_analyst($current_user_id);
-        $data['analysis_statuses'] = $this->Admindb->get_all_analysis_statuses();
+        $data = [
+            'user' => $this->user,
+            'edit' => $study,
+            'sites' => $this->Admindb->get_all_customers(),
+            'asignee' => $this->Admindb->get_all_analyst($current_user_id),
+            'analysis_statuses' => $this->Admindb->get_all_analysis_statuses(),
+        ];
 
         $this->view('v2/layout/side_menu/analyst_new_menu', $data);
-        $this->view('v2/analyst/dicom/open/view', $data);
+        //$this->view('v2/analyst/dicom/all/all', $data);
+        $this->redirect('analyst/analyst_dicom_details_all');
         return;
     }
 
-    // Default list view
-    // ✅ Fix: pass user ID to avoid error
-    $data['asignee'] = $this->Admindb->get_all_analyst($current_user_id);
-    $data['analysis_statuses'] = $this->Admindb->get_all_analysis_statuses();
-    $data['open_studies'] = $this->Admindb->get_studies_open_status(1); // assuming 1 = open
+    // Default view (open studies list)
+    $data = [
+        'user' => $this->user,
+        'asignee' => $this->Admindb->get_all_analyst($current_user_id),
+        'analysis_statuses' => $this->Admindb->get_all_analysis_statuses(),
+        'open_studies' => $this->Admindb->get_studies_open_status(1),
+    ];
 
     $this->view('v2/layout/side_menu/analyst_new_menu', $data);
-    $this->view('v2/analyst/dicom/open/list', $data);
+    $this->view('v2/analyst/dicom/all/all', $data);
 }
 
 
@@ -456,6 +461,70 @@ public function current_month_studies()
     $this->view('v2/analyst/dicom/current/list', $data);
 }
 
+//For Updating TAT(23-06-2025)
+public function update_tat() {
+    $study_id = isset($_POST['study_id']) ? intval($_POST['study_id']) : null;
+    $tat_value = isset($_POST['tat_value']) ? trim($_POST['tat_value']) : null;
+
+    if ($study_id && $tat_value !== '') {
+        $con = $this->getConnection();
+        $stmt = $con->prepare("UPDATE studies 
+            SET actual_tat = ? 
+            WHERE studies_id = ?");
+        $stmt->bind_param("si", $tat_value, $study_id);
+
+        if ($stmt->execute()) {
+            echo json_encode(['status' => 'success']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Database update failed']);
+        }
+    } else {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Missing or invalid parameters']);
+    }
+    exit;
+}
+
+public function update_client_assignment() {
+    // Prevent unwanted output before JSON
+    ob_clean();
+    header('Content-Type: application/json');
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+
+    // Get POST data
+    $study_id = $_POST['study_id'] ?? null;
+    $new_client_account_id = $_POST['client_account_id'] ?? null;
+
+    // Validate input
+    if (!$study_id || !$new_client_account_id) {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Missing required fields: study_id or client_account_id'
+        ]);
+        exit;
+    }
+
+    // Call the model
+    $result = $this->Admindb->update_client_assignment($study_id, $new_client_account_id);
+
+    // Validate model return type
+    if (!is_array($result)) {
+        http_response_code(500);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Invalid model return type'
+        ]);
+        exit;
+    }
+
+    // Set 200 OK explicitly
+    http_response_code(200);
+    echo json_encode($result);
+    exit;
+}
 
 
 }

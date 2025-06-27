@@ -74,7 +74,7 @@
 
                     <div class="card data-tb-style">
                         <div class="card-header">
-                            <form method="post" action="/ajaxV3/export_allstudies_info_excel">
+                            <form method="post" action="/ajaxV3/stat_report_csv">
                                 <select class="form-control float-left" id="days" name="days" style="width: 10%; margin-right: 10px;">
                                     <option value="">-- Show Last --</option>
                                     <option value="1">1 day</option>
@@ -125,9 +125,7 @@
 
 
                                 <button type="button" id="reset_filter" class="btn btn-danger" name="reset_filter">Reset Filter</button>
-								
-								<input type="hidden" id="searchValue" name="searchValue" value="">
-                                <button type="submit" name="export" id="export" class="btn btn-success float-right"><i aria-hidden="true" class="fas fa-file-excel"></i> Download Excel</button>
+                                <button type="submit" name="export" id="export" class="btn btn-success float-right"><i aria-hidden="true" class="fas fa-file-excel"></i> Export To CSV</button>
 
                             </form>
                         </div>
@@ -177,10 +175,6 @@
                                     </tr>
                                 </tfoot>
                             </table>
-
-                            <div class="card-footer text-center text-secondary mt-2">
-                                <h5 class="h5 text-bold"><?php echo "All Studies"; ?></h5>
-                            </div>
                         </div>
                         <!-- /.card-body -->
                     </div>
@@ -198,15 +192,11 @@
 <script>
     $(document).ready(function () {
         var dt = $('#dataTbl').DataTable({
-            //"lengthMenu": [[100], [100]],
-            "lengthMenu": [
-                [10, 25, 50, 100, 1000],
-                [10, 25, 50, 100, "All"]
-            ],
+            "lengthMenu": [[100], [100]],
             "order": [[0, "desc"]],
             "processing": true,
             "serverSide": true,
-            "responsive": true,
+            //"responsive": true,
             /*"columnDefs": [
              {targets: 'no-sort', orderable: false},
              {responsivePriority: 1, targets: [0, 1, 5]},
@@ -264,11 +254,6 @@
              }
              }
              */
-        });
-		
-		$('#export').on('click', function() {
-            var searchTerm = dt.search();
-            $('#searchValue').val(searchTerm);
         });
 
 

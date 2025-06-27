@@ -40,7 +40,8 @@ switch ($_SESSION['user']->user_type_ids) {
                     <div class="card data-tb-style">
                         <div class="card-header">
                             
-                           <form method="post" action="/ajaxV3/stat_report_csv">
+                           <?php /* <form method="post" action="/ajaxV3/stat_report_csv"> */ ?>
+                            <form method="post" action="/ajaxV3/get_stat_info_excel">
                             <select class="form-control float-left" id="days" name="days" style="width: 15%; margin-right: 10px;">
                             	<option value="">SELECT DAYS</option>
                             	 <option value="1"> 1 day </option>
@@ -99,7 +100,8 @@ switch ($_SESSION['user']->user_type_ids) {
 
 
 
-                           <button type="submit" name="export" id="export" class="btn btn-success float-right"><i aria-hidden="true" class="fas fa-file-excel"></i> Export To CSV</button>
+                           <input type="hidden" id="searchValue" name="searchValue" value="">
+						   <button type="submit" name="export" id="export" class="btn btn-success float-right"><i aria-hidden="true" class="fas fa-file-excel"></i> Download Excel</button>
 
                          </form>
                             
@@ -196,6 +198,11 @@ switch ($_SESSION['user']->user_type_ids) {
                 d.status = $('#status').val();
             }
             }
+        });
+		
+	   $('#export').on('click', function() {
+            var searchTerm = dt.search();
+            $('#searchValue').val(searchTerm);
         });
 
       $('#days, #assignee, #second_assignee, #status').on('change', function () {

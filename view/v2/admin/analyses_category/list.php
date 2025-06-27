@@ -39,7 +39,7 @@ switch ($_SESSION['user']->user_type_ids) {
 
                     <div class="card data-tb-style">
                         <div class="card-header">
-                            <form method="post" action="/tat/export_analyses_category_info_excel" id="exportForm">
+                            <form method="post" action="<?=SITE_URL ?>/tat/export_analyses_category_info_excel" id="exportForm">
                                 <h3 class="card-title">List</h3>
                                 <input type="hidden" name="searchValue" id="searchValueInput" value="">
                                 <button type="submit" name="export" id="export" class="btn btn-success float-right"><i aria-hidden="true" class="fas fa-file-excel"></i> Download Excel</button>

@@ -2785,7 +2785,7 @@ WHERE
 
     public function get_organizations()
     {
-        header('Content-Type: application/json');
+      //  header('Content-Type: application/json');
 
         $clients = $this->Tatdb->get_active_clients();
 
@@ -2795,9 +2795,13 @@ WHERE
                 'value' => $client['client_id'],
                 'text' => $client['client_name']
             ];
+			
         }
+		
+		//print_r($response); die;
 
         echo json_encode($response);
+		die;
     }
 
 

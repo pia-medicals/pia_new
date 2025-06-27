@@ -1,7 +1,3 @@
-
-
-
-
 <div class="content-wrapper dashboard_body">
   <section class="content">
     <?php $this->alert(); ?>
@@ -28,8 +24,8 @@
           </div>
 
           <div class="form-group">
-            <label for="client_site_name">Site</label>
-            <input type="text" id="client_site_name" name="client_site_name" class="form-control" placeholder="Site" required>
+            <label for="client_site_name">Institution</label>
+            <input type="text" id="client_site_name" name="client_site_name" class="form-control" placeholder="Institution" required>
           </div>
 
           <div class="form-group">
@@ -38,7 +34,7 @@
               <option value="">-- Select a client --</option>
               <?php foreach ($clients as $client): ?>
                 <option value="<?= htmlspecialchars($client['client_account_id']) ?>">
-                  <?= htmlspecialchars($client['user_name']) ?>
+                  <?= htmlspecialchars($client['client_name']) ?>
                 </option>
               <?php endforeach; ?>
             </select>
